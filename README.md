@@ -1,4 +1,4 @@
-# comiAPP – Asistente de cocina
+# comIA – Asistente de cocina
 
 Aplicación móvil desarrollada en Flutter que guía al usuario paso a paso en la
 preparación de recetas, con temporizadores múltiples y perfil de usuario.

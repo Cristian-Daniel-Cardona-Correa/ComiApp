@@ -3,10 +3,17 @@ import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../../../auth/models/user_profile.dart';
 import '../../models/recipe.dart';
 import '../../providers/recipe_provider.dart';
 import '../widgets/portion_selector.dart';
 import '../widgets/dietary_badge.dart';
+import '../../../cooking/presentation/screens/cooking_mode_screen.dart';
+import '../../../cooking/providers/cooking_session_provider.dart';
+import '../../../cooking/providers/timer_provider.dart';
+import '../../../ai_assistant/providers/ai_chef_provider.dart';
+import '../../../ai_assistant/presentation/screens/ai_chef_modal.dart';
+import '../../../ai_assistant/services/ai_context_builder.dart';
 
 class RecipeDetailScreen extends StatelessWidget {
   final Recipe recipe;
@@ -339,10 +346,50 @@ class RecipeDetailScreen extends StatelessWidget {
               if (onStartCooking != null) {
                 onStartCooking!(context, recipe, portions);
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Modo Cocina iniciado'),
-                    backgroundColor: AppColors.primaryTeal,
+                final sessionProv = context.read<CookingSessionProvider>();
+                final timerProv = context.read<TimerProvider>();
+                final aiProv = context.read<AiChefProvider>();
+                final authProv = context.read<AuthProvider>();
+
+                aiProv.onNextStepRequested = () => sessionProv.nextStep();
+                aiProv.onPreviousStepRequested = () => sessionProv.previousStep();
+                aiProv.onStartTimerRequested = (name, minutes) {
+                  final step = sessionProv.currentStep;
+                  timerProv.startTimer(
+                    label: name,
+                    recipeId: recipe.id,
+                    stepId: step?.id ?? 'voice_timer',
+                    minutes: minutes,
+                  );
+                };
+                aiProv.onCancelTimerRequested = (name) {
+                  final match = timerProv.timers.firstWhere(
+                    (t) => t.label.toLowerCase().contains(name.toLowerCase()),
+                    orElse: () => timerProv.timers.first,
+                  );
+                  timerProv.cancelTimer(match.id);
+                };
+
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => CookingModeScreen(
+                      recipe: recipe,
+                      portions: portions,
+                      onOpenAiChef: () {
+                        final currentStep =
+                            sessionProv.currentStep ?? recipe.steps.first;
+                        final cookingCtx = AiCookingContext(
+                          recipe: recipe,
+                          currentStep: currentStep,
+                          portions: portions,
+                          activeTimers: timerProv.timers,
+                          preferences: authProv.user?.preferences ??
+                              const DietaryPreferences(),
+                        );
+                        aiProv.startSession(cookingCtx);
+                        AiChefModal.show(context);
+                      },
+                    ),
                   ),
                 );
               }

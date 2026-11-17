@@ -23,23 +23,31 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
   Future<void> _handleAccept() async {
     if (!_acceptedTerms) return;
     setState(() => _loading = true);
-    final auth = context.read<AuthProvider>();
-    await auth.acceptPrivacyConsent();
+    try {
+      final auth = context.read<AuthProvider>();
+      await auth.acceptPrivacyConsent();
+    } catch (e) {
+      debugPrint('Error accepting privacy consent: $e');
+    }
     if (!mounted) return;
     setState(() => _loading = false);
 
     if (widget.onConsentAccepted != null) {
-      widget.onConsentAccepted!();
-    } else {
-      // Accedido desde el perfil: volver a HomeShell o simplemente pop
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop();
-      } else {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeShellScreen()),
-          (route) => false,
-        );
+      try {
+        widget.onConsentAccepted!();
+        return;
+      } catch (e) {
+        debugPrint('onConsentAccepted failed, falling back to direct navigation: $e');
       }
+    }
+
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShellScreen()),
+        (route) => false,
+      );
     }
   }
 

@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "474523548597",
+    "project_id": "comiapp-fea78",
+    "storage_bucket": "comiapp-fea78.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:474523548597:android:7bea65b7ee5ebf477037fc",
+        "android_client_info": {
+          "package_name": "com.comiapp.comiapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "474523548597-c5fjh692tpjnhpqkgq64aca0fr53emp3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDHxrITBu_xGMh7EpbWNlAVFpuysaFH7r8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "474523548597-c5fjh692tpjnhpqkgq64aca0fr53emp3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -5,6 +5,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../recipes/presentation/screens/catalog_screen.dart';
 import '../../../cooking/presentation/widgets/global_timer_banner.dart';
 import '../../../cooking/presentation/widgets/active_timers_sheet.dart';
+import '../../../cooking/presentation/widgets/add_manual_timer_dialog.dart';
 import '../../../cooking/providers/timer_provider.dart';
 import '../../../auth/presentation/screens/profile_screen.dart';
 
@@ -95,10 +96,16 @@ class ActiveTimersPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: AppColors.creamBackground,
-      body: SafeArea(
+      body: const SafeArea(
         child: ActiveTimersSheet(),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => AddManualTimerDialog.show(context),
+        backgroundColor: AppColors.accentOrange,
+        icon: const Icon(Icons.add_alarm_rounded),
+        label: Text('Nuevo Temporizador', style: AppTypography.badge),
       ),
     );
   }

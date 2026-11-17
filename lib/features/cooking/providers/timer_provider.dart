@@ -107,7 +107,20 @@ class TimerProvider extends ChangeNotifier {
     }
   }
 
-  /// Inicia o crea un temporizador para un paso
+  /// Inicia un temporizador manual (sin receta asociada)
+  CookingTimer startManualTimer({
+    required String label,
+    required int minutes,
+  }) {
+    return startTimer(
+      label: label,
+      recipeId: 'manual',
+      stepId: _uuid.v4(),
+      minutes: minutes,
+    );
+  }
+
+  /// Inicia o crea un temporizador para un paso de receta
   CookingTimer startTimer({
     required String label,
     required String recipeId,
@@ -117,9 +130,8 @@ class TimerProvider extends ChangeNotifier {
     final durationSeconds = minutes * 60;
     final deadline = DateTime.now().add(Duration(seconds: durationSeconds));
 
-    // Si ya existe un temporizador con el mismo paso, lo reanudamos o actualizamos
-    final existingIndex = _timers.indexWhere(
-        (t) => t.recipeId == recipeId && t.stepId == stepId);
+    final existingIndex =
+        _timers.indexWhere((t) => t.recipeId == recipeId && t.stepId == stepId);
 
     CookingTimer timer;
     if (existingIndex >= 0) {
@@ -196,37 +208,48 @@ class TimerProvider extends ChangeNotifier {
     }
   }
 
-  /// Agrega 1 minuto adicional al temporizador (+1 min requerido por el prompt)
+  /// Agrega 1 minuto al temporizador
   void addOneMinute(String timerId) {
+    _adjustMinutes(timerId, 60);
+  }
+
+  /// Quita 1 minuto al temporizador (mínimo 10 segundos restantes)
+  void removeOneMinute(String timerId) {
+    _adjustMinutes(timerId, -60);
+  }
+
+  void _adjustMinutes(String timerId, int deltaSeconds) {
     final index = _timers.indexWhere((t) => t.id == timerId);
-    if (index >= 0) {
-      final timer = _timers[index];
-      final newRemaining = timer.remainingSeconds + 60;
-      final newTotal = timer.totalDurationSeconds + 60;
-      DateTime? newDeadline;
+    if (index < 0) return;
+    final timer = _timers[index];
 
-      if (timer.isRunning) {
-        newDeadline = DateTime.now().add(Duration(seconds: newRemaining));
-      }
+    // No bajar de 10 segundos
+    final newRemaining =
+        (timer.remainingSeconds + deltaSeconds).clamp(10, 86400);
+    final newTotal = (timer.totalDurationSeconds + deltaSeconds).clamp(10, 86400);
+    DateTime? newDeadline;
 
-      final updated = timer.copyWith(
-        remainingSeconds: newRemaining,
-        totalDurationSeconds: newTotal,
-        deadline: newDeadline,
-        status: timer.isFinished ? TimerStatus.corriendo : timer.status,
-      );
-
-      _timers[index] = updated;
-      if (newDeadline != null) {
-        _notificationService.scheduleTimerNotification(
-          timer: updated,
-          deadline: newDeadline,
-        );
-      }
-      _evaluateTicker();
-      _repository.saveActiveTimers(_timers);
-      notifyListeners();
+    if (timer.isRunning) {
+      newDeadline = DateTime.now().add(Duration(seconds: newRemaining));
     }
+
+    final updated = timer.copyWith(
+      remainingSeconds: newRemaining,
+      totalDurationSeconds: newTotal,
+      deadline: newDeadline,
+      status: timer.isFinished ? TimerStatus.corriendo : timer.status,
+    );
+
+    _timers[index] = updated;
+    if (newDeadline != null) {
+      _notificationService.scheduleTimerNotification(
+        timer: updated,
+        deadline: newDeadline,
+      );
+    }
+    _evaluateTicker();
+    _repository.saveActiveTimers(_timers);
+    notifyListeners();
   }
 
   void cancelTimer(String timerId) {

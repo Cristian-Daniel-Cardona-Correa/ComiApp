@@ -13,6 +13,7 @@ import '../../../cooking/providers/cooking_session_provider.dart';
 import '../../../cooking/providers/timer_provider.dart';
 import '../../../ai_assistant/providers/ai_chef_provider.dart';
 import '../../../ai_assistant/presentation/screens/ai_chef_modal.dart';
+import '../../../ai_assistant/presentation/widgets/ai_permissions_dialog.dart';
 import '../../../ai_assistant/services/ai_context_builder.dart';
 
 class RecipeDetailScreen extends StatelessWidget {
@@ -375,7 +376,11 @@ class RecipeDetailScreen extends StatelessWidget {
                     builder: (_) => CookingModeScreen(
                       recipe: recipe,
                       portions: portions,
-                      onOpenAiChef: () {
+                      onOpenAiChef: () async {
+                        final granted =
+                            await AiPermissionsDialog.requestConsent(context);
+                        if (!granted || !context.mounted) return;
+
                         final currentStep =
                             sessionProv.currentStep ?? recipe.steps.first;
                         final cookingCtx = AiCookingContext(
@@ -387,7 +392,9 @@ class RecipeDetailScreen extends StatelessWidget {
                               const DietaryPreferences(),
                         );
                         aiProv.startSession(cookingCtx);
-                        AiChefModal.show(context);
+                        if (context.mounted) {
+                          AiChefModal.show(context);
+                        }
                       },
                     ),
                   ),

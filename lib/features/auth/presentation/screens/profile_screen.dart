@@ -4,10 +4,48 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../models/user_profile.dart';
 import '../../providers/auth_provider.dart';
+import 'login_screen.dart';
 import 'privacy_consent_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  bool _signingOut = false;
+
+  Future<void> _handleSignOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('¿Cerrar sesión?'),
+        content: const Text('Podrás volver a iniciar sesión en cualquier momento.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorCoral),
+            child: const Text('Cerrar sesión'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _signingOut = true);
+    await context.read<AuthProvider>().signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,6 +64,18 @@ class ProfileScreen extends StatelessWidget {
       backgroundColor: AppColors.creamBackground,
       appBar: AppBar(
         title: const Text('Mi Perfil Culinario'),
+        actions: [
+          if (_signingOut)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: Center(
+                child: SizedBox(
+                  width: 20, height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2.5),
+                ),
+              ),
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -128,12 +178,13 @@ class ProfileScreen extends StatelessWidget {
             // Preferencias Dietéticas
             Text('Preferencias y Dietas', style: AppTypography.titleMedium),
             const SizedBox(height: 10),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
+            Material(
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.outlineDark, width: 2),
+                side: const BorderSide(color: AppColors.outlineDark, width: 2),
               ),
+              clipBehavior: Clip.antiAlias,
               child: Column(
                 children: [
                   SwitchListTile(
@@ -181,35 +232,43 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Acceso a Privacidad / Habeas Data
-            ListTile(
+            Material(
+              color: AppColors.mintSoft,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: const BorderSide(color: AppColors.outlineDark, width: 1.5),
               ),
-              tileColor: AppColors.mintSoft,
-              leading: const Icon(Icons.privacy_tip_outlined,
-                  color: AppColors.primaryTeal),
-              title: const Text('Política de Privacidad y Habeas Data'),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const PrivacyConsentScreen()),
-                );
-              },
+              child: ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined,
+                    color: AppColors.primaryTeal),
+                title: const Text('Política de Privacidad y Habeas Data'),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const PrivacyConsentScreen()),
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 24),
 
             // Botón cerrar sesión
             OutlinedButton.icon(
-              onPressed: () => auth.signOut(),
-              icon: const Icon(Icons.logout, color: AppColors.errorCoral),
+              onPressed: _signingOut ? null : _handleSignOut,
+              icon: _signingOut
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.errorCoral),
+                    )
+                  : const Icon(Icons.logout, color: AppColors.errorCoral),
               label: Text(
-                'Cerrar Sesión',
+                _signingOut ? 'Cerrando sesión...' : 'Cerrar Sesión',
                 style: AppTypography.button.copyWith(color: AppColors.errorCoral),
               ),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.errorCoral, width: 2),
+                minimumSize: const Size.fromHeight(54),
               ),
             ),
             const SizedBox(height: 32),

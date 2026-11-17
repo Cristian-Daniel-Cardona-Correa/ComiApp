@@ -169,6 +169,27 @@ class _CookingModeScreenState extends State<CookingModeScreen> {
               tooltip: 'Mis Tiempos',
               onPressed: () => ActiveTimersSheet.show(context),
             ),
+            // Botón "Chef IA" en AppBar para no solaparse con los botones de paso
+            IconButton(
+              icon: const Icon(Icons.psychology_alt_rounded, size: 26),
+              tooltip: 'Preguntarle al chef',
+              style: IconButton.styleFrom(
+                backgroundColor: AppColors.mintSoft,
+                foregroundColor: AppColors.primaryTeal,
+              ),
+              onPressed: () {
+                if (widget.onOpenAiChef != null) {
+                  widget.onOpenAiChef!();
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Abriendo Asistente Chef IA...'),
+                      backgroundColor: AppColors.primaryTeal,
+                    ),
+                  );
+                }
+              },
+            ),
           ],
         ),
         body: SafeArea(
@@ -516,32 +537,6 @@ class _CookingModeScreenState extends State<CookingModeScreen> {
                 ),
               ),
             ],
-          ),
-        ),
-        // Botón flotante "Preguntarle al chef" para Gemini Live
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () {
-            if (widget.onOpenAiChef != null) {
-              widget.onOpenAiChef!();
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Abriendo Asistente Chef IA...'),
-                  backgroundColor: AppColors.primaryTeal,
-                ),
-              );
-            }
-          },
-          backgroundColor: AppColors.primaryTeal,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: AppColors.outlineDark, width: 2),
-          ),
-          icon: const Icon(Icons.mic_rounded, size: 24),
-          label: Text(
-            'Preguntarle al chef',
-            style: AppTypography.button.copyWith(color: Colors.white, fontSize: 15),
           ),
         ),
       ),

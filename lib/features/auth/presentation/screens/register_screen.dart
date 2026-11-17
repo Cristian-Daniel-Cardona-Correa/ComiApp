@@ -117,7 +117,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (user != null && !user.hasAcceptedPrivacyConsent) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
-            builder: (_) => PrivacyConsentScreen(onConsentAccepted: _navigateToHome),
+            builder: (_) => const PrivacyConsentScreen(),
           ),
           (route) => false,
         );

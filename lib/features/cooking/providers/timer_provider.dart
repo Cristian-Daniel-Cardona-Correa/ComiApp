@@ -107,6 +107,19 @@ class TimerProvider extends ChangeNotifier {
     }
   }
 
+  /// Inicia un temporizador manual (sin receta asociada)
+  CookingTimer startManualTimer({
+    required String label,
+    required int minutes,
+  }) {
+    return startTimer(
+      label: label,
+      recipeId: 'manual',
+      stepId: _uuid.v4(),
+      minutes: minutes,
+    );
+  }
+
   /// Inicia o crea un temporizador para un paso
   CookingTimer startTimer({
     required String label,

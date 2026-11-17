@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>comiAPP necesita acceso al micrófono para interactuar por voz con el Chef IA (Gemini Live) mientras cocinas con manos libres.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>comiAPP necesita acceso a la cámara para que el Chef IA pueda ver el punto de cocción y dorado de tus alimentos.</string>
 </dict>
 </plist>

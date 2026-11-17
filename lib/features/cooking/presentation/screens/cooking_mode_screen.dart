@@ -6,6 +6,7 @@ import '../../../recipes/models/recipe.dart';
 import '../../providers/cooking_session_provider.dart';
 import '../../providers/timer_provider.dart';
 import '../widgets/active_timers_sheet.dart';
+import 'recipe_complete_screen.dart';
 
 class CookingModeScreen extends StatefulWidget {
   final Recipe recipe;
@@ -486,7 +487,12 @@ class _CookingModeScreenState extends State<CookingModeScreen> {
                       child: ElevatedButton(
                         onPressed: () {
                           if (session.isLastStep) {
-                            _handleExit();
+                            RecipeCompleteScreen.navigate(
+                              context,
+                              widget.recipe,
+                              portions: widget.portions,
+                              onOpenAiChef: widget.onOpenAiChef,
+                            );
                           } else {
                             session.nextStep();
                           }

@@ -1,0 +1,239 @@
+[
+  {
+    "id": "pasta-carbonara",
+    "title": "Pasta Carbonara Tradicional",
+    "description": "La auténtica receta romana sin nata: yemas cremosas, queso pecorino, pimienta negra recién molida y panceta crujiente.",
+    "imageUrl": "https://images.unsplash.com/photo-1612874742237-6526221588e3?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 20,
+    "difficulty": "medio",
+    "defaultPortions": 2,
+    "dietaryTags": ["Rápido", "Pasta", "Italiana", "Clásica"],
+    "isVegetarian": false,
+    "isVegan": false,
+    "isGlutenFree": false,
+    "ingredients": [
+      {"id": "carb_1", "name": "Espaguetis", "baseQuantity": 200, "unit": "g", "category": "Pasta"},
+      {"id": "carb_2", "name": "Panceta o tocineta gruesa en cubos", "baseQuantity": 120, "unit": "g", "category": "Carnes"},
+      {"id": "carb_3", "name": "Yemas de huevo fresco", "baseQuantity": 3, "unit": "unidades", "category": "Huevos"},
+      {"id": "carb_4", "name": "Queso Pecorino o Parmesano rallado", "baseQuantity": 60, "unit": "g", "category": "Lácteos"},
+      {"id": "carb_5", "name": "Pimienta negra recién molida", "baseQuantity": 1, "unit": "cdta", "category": "Especias"},
+      {"id": "carb_6", "name": "Sal para el agua de la pasta", "baseQuantity": 15, "unit": "g", "category": "Condimentos"}
+    ],
+    "steps": [
+      {"id": "carb_step_1", "stepNumber": 1, "title": "Poner el agua a hervir", "instruction": "Pon una olla grande con abundante agua a fuego alto. Cuando rompa a hervir con fuerza, añade la sal.", "relevantIngredientIds": ["carb_6"]},
+      {"id": "carb_step_2", "stepNumber": 2, "title": "Dorar la panceta", "instruction": "En una sartén fría a fuego medio-bajo, coloca los cubos de tocineta sin aceite adicional. Deja dorar.", "timerMinutes": 6, "timerLabel": "Dorar panceta", "relevantIngredientIds": ["carb_2"]},
+      {"id": "carb_step_3", "stepNumber": 3, "title": "Cocinar la pasta al dente", "instruction": "Agrega los espaguetis al agua hirviendo. Remueve y cocina al dente.", "timerMinutes": 9, "timerLabel": "Hervir espaguetis", "relevantIngredientIds": ["carb_1"]},
+      {"id": "carb_step_4", "stepNumber": 4, "title": "Mezclar la crema de yemas", "instruction": "En un tazón hondo bate las yemas con el queso rallado y pimienta negra.", "relevantIngredientIds": ["carb_3", "carb_4", "carb_5"]},
+      {"id": "carb_step_5", "stepNumber": 5, "title": "Emulsionar fuera del fuego", "instruction": "Pasa la pasta caliente recién escurrida a la sartén con la panceta. Vierte la mezcla de yemas y agua de pasta.", "relevantIngredientIds": ["carb_1", "carb_2", "carb_3", "carb_4"]}
+    ]
+  },
+  {
+    "id": "arroz-con-pollo",
+    "title": "Arroz con Pollo Casero Latino",
+    "description": "Plato insignia lleno de sabor con pollo sazonado, sofrito criollo, verduras frescas y arroz dorado sueltito.",
+    "imageUrl": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 45,
+    "difficulty": "medio",
+    "defaultPortions": 4,
+    "dietaryTags": ["Almuerzo", "Tradicional", "Pollo", "Completo"],
+    "isVegetarian": false,
+    "isVegan": false,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "acp_1", "name": "Pechuga de pollo en dados", "baseQuantity": 500, "unit": "g", "category": "Carnes"},
+      {"id": "acp_2", "name": "Arroz blanco", "baseQuantity": 300, "unit": "g", "category": "Granos"},
+      {"id": "acp_3", "name": "Cebolla cabezona picada", "baseQuantity": 1, "unit": "unidad", "category": "Verduras"},
+      {"id": "acp_4", "name": "Pimentón rojo en tiritas", "baseQuantity": 1, "unit": "unidad", "category": "Verduras"},
+      {"id": "acp_5", "name": "Arvejas y zanahorias", "baseQuantity": 150, "unit": "g", "category": "Verduras"},
+      {"id": "acp_6", "name": "Caldo de pollo caliente", "baseQuantity": 650, "unit": "ml", "category": "Líquidos"}
+    ],
+    "steps": [
+      {"id": "acp_step_1", "stepNumber": 1, "title": "Sellar el pollo", "instruction": "Sella los trozos de pollo en aceite caliente hasta que doren.", "timerMinutes": 6, "timerLabel": "Sellar pollo", "relevantIngredientIds": ["acp_1"]},
+      {"id": "acp_step_2", "stepNumber": 2, "title": "Sofrito criollo", "instruction": "Añade cebolla y pimentón a la olla. Cocina hasta que transparente.", "timerMinutes": 7, "timerLabel": "Sofrito", "relevantIngredientIds": ["acp_3", "acp_4"]},
+      {"id": "acp_step_3", "stepNumber": 3, "title": "Mezclar arroz", "instruction": "Incorpora el arroz y las verduras. Sofríe 2 minutos.", "relevantIngredientIds": ["acp_2", "acp_5"]},
+      {"id": "acp_step_4", "stepNumber": 4, "title": "Cocinar tapado", "instruction": "Vierte el caldo caliente. Deja secar, baja el fuego y tapa.", "timerMinutes": 20, "timerLabel": "Cocinar arroz", "relevantIngredientIds": ["acp_6"]}
+    ]
+  },
+  {
+    "id": "sopa-lentejas",
+    "title": "Sopa de Lentejas Casera Reconfortante",
+    "description": "Nutritiva, caliente y espesa. Con verduras salteadas, papita en cubos y un toque ahumado de comino y laurel.",
+    "imageUrl": "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 35,
+    "difficulty": "facil",
+    "defaultPortions": 4,
+    "dietaryTags": ["Vegetariano", "Vegano", "Sin Gluten", "Saludable"],
+    "isVegetarian": true,
+    "isVegan": true,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "len_1", "name": "Lentejas pardinas", "baseQuantity": 250, "unit": "g", "category": "Granos"},
+      {"id": "len_2", "name": "Papas medianas", "baseQuantity": 2, "unit": "unidades", "category": "Tubérculos"},
+      {"id": "len_3", "name": "Zanahoria en cubos", "baseQuantity": 1, "unit": "unidad", "category": "Verduras"},
+      {"id": "len_4", "name": "Agua o caldo", "baseQuantity": 1000, "unit": "ml", "category": "Líquidos"}
+    ],
+    "steps": [
+      {"id": "len_step_1", "stepNumber": 1, "title": "Sofreír verduras", "instruction": "Sofríe zanahoria, cebolla y comino hasta que suelten jugo.", "timerMinutes": 5, "timerLabel": "Sofreír", "relevantIngredientIds": ["len_3"]},
+      {"id": "len_step_2", "stepNumber": 2, "title": "Cocinar lentejas", "instruction": "Agrega lentejas y agua. Cocina a fuego medio-bajo.", "timerMinutes": 15, "timerLabel": "Hervir lentejas", "relevantIngredientIds": ["len_1", "len_4"]},
+      {"id": "len_step_3", "stepNumber": 3, "title": "Espesar con papas", "instruction": "Agrega papas y cocina hasta tiernas.", "timerMinutes": 12, "timerLabel": "Cocinar papas", "relevantIngredientIds": ["len_2"]}
+    ]
+  },
+  {
+    "id": "tacos-pastor-champi",
+    "title": "Tacos de Champiñones al Pastor",
+    "description": "Una versión vegetariana y rápida de los reyes del taco callejero, con piña asada, cebollita y cilantro fresco.",
+    "imageUrl": "https://images.unsplash.com/photo-1551504734-5ee1c4a1479b?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 25,
+    "difficulty": "facil",
+    "defaultPortions": 3,
+    "dietaryTags": ["Vegetariano", "Vegano", "Sin Gluten", "Rápido", "Mexicana"],
+    "isVegetarian": true,
+    "isVegan": true,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "tac_1", "name": "Champiñones laminados", "baseQuantity": 400, "unit": "g", "category": "Hongos"},
+      {"id": "tac_2", "name": "Pasta de achiote", "baseQuantity": 3, "unit": "cda", "category": "Salsas"},
+      {"id": "tac_3", "name": "Piña fresca en triángulos", "baseQuantity": 150, "unit": "g", "category": "Frutas"},
+      {"id": "tac_4", "name": "Tortillas de maíz", "baseQuantity": 6, "unit": "unidades", "category": "Tortillas"}
+    ],
+    "steps": [
+      {"id": "tac_step_1", "stepNumber": 1, "title": "Marinar", "instruction": "Baña los champiñones en achiote y jugo de naranja.", "relevantIngredientIds": ["tac_1", "tac_2"]},
+      {"id": "tac_step_2", "stepNumber": 2, "title": "Asar piña", "instruction": "Asa la piña hasta dorar.", "timerMinutes": 4, "timerLabel": "Asar piña", "relevantIngredientIds": ["tac_3"]},
+      {"id": "tac_step_3", "stepNumber": 3, "title": "Saltear", "instruction": "Saltea champiñones a fuego alto.", "timerMinutes": 6, "timerLabel": "Saltear champiñones", "relevantIngredientIds": ["tac_1"]}
+    ]
+  },
+  {
+    "id": "salmon-esparragos",
+    "title": "Salmón a la Sartén con Espárragos",
+    "description": "Cena gourmet en menos de 20 minutos: piel crujiente, centro jugoso, espárragos al dente y mantequilla con limón.",
+    "imageUrl": "https://images.unsplash.com/photo-1467003909585-2f8a72700288?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 20,
+    "difficulty": "facil",
+    "defaultPortions": 2,
+    "dietaryTags": ["Rápido", "Saludable", "Sin Gluten", "Gourmet", "Pescados"],
+    "isVegetarian": false,
+    "isVegan": false,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "sal_1", "name": "Filetes de salmón fresco", "baseQuantity": 2, "unit": "unidades", "category": "Pescados"},
+      {"id": "sal_2", "name": "Espárragos verdes", "baseQuantity": 200, "unit": "g", "category": "Verduras"},
+      {"id": "sal_3", "name": "Mantequilla", "baseQuantity": 20, "unit": "g", "category": "Grasas"}
+    ],
+    "steps": [
+      {"id": "sal_step_1", "stepNumber": 1, "title": "Piel crujiente", "instruction": "Cocina el salmón sobre la piel sin moverlo.", "timerMinutes": 4, "timerLabel": "Piel salmón", "relevantIngredientIds": ["sal_1"]},
+      {"id": "sal_step_2", "stepNumber": 2, "title": "Voltear y dorar", "instruction": "Voltea y añade espárragos con mantequilla.", "timerMinutes": 3, "timerLabel": "Espárragos", "relevantIngredientIds": ["sal_2", "sal_3"]}
+    ]
+  },
+  {
+    "id": "bowl-quinoa-garbanzos",
+    "title": "Bowl Mediterráneo de Quinoa y Garbanzos",
+    "description": "Fresco, colorido y cargado de proteína vegetal: garbanzos crocantes especiados, pepino, tomate cherry, aguacate y aderezo tahini.",
+    "imageUrl": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 25,
+    "difficulty": "facil",
+    "defaultPortions": 2,
+    "dietaryTags": ["Vegetariano", "Vegano", "Sin Gluten", "Saludable", "Fitness"],
+    "isVegetarian": true,
+    "isVegan": true,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "bwl_1", "name": "Quinoa cruda lavada", "baseQuantity": 120, "unit": "g", "category": "Granos"},
+      {"id": "bwl_2", "name": "Garbanzos cocidos", "baseQuantity": 200, "unit": "g", "category": "Legumbres"},
+      {"id": "bwl_3", "name": "Tomates cherry", "baseQuantity": 100, "unit": "g", "category": "Verduras"}
+    ],
+    "steps": [
+      {"id": "bwl_step_1", "stepNumber": 1, "title": "Hervir quinoa", "instruction": "Cocina la quinoa en agua a fuego bajo.", "timerMinutes": 14, "timerLabel": "Quinoa", "relevantIngredientIds": ["bwl_1"]},
+      {"id": "bwl_step_2", "stepNumber": 2, "title": "Tostar garbanzos", "instruction": "Tuesta en sartén con pimentón ahumado.", "timerMinutes": 7, "timerLabel": "Garbanzos", "relevantIngredientIds": ["bwl_2"]}
+    ]
+  },
+  {
+    "id": "pollo-champinones",
+    "title": "Pollo en Salsa de Champiñones",
+    "description": "Pechuga tierna y jugosa bañada en una sedosa salsa de champiñones frescos al ajillo y crema.",
+    "imageUrl": "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 30,
+    "difficulty": "medio",
+    "defaultPortions": 3,
+    "dietaryTags": ["Almuerzo", "Pollo", "Clásica", "Confort"],
+    "isVegetarian": false,
+    "isVegan": false,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "pch_1", "name": "Filetes de pechuga", "baseQuantity": 500, "unit": "g", "category": "Carnes"},
+      {"id": "pch_2", "name": "Champiñones frescos", "baseQuantity": 250, "unit": "g", "category": "Hongos"},
+      {"id": "pch_3", "name": "Crema de leche", "baseQuantity": 200, "unit": "ml", "category": "Lácteos"}
+    ],
+    "steps": [
+      {"id": "pch_step_1", "stepNumber": 1, "title": "Dorar pechuga", "instruction": "Dora el pollo en mantequilla 3 min por lado.", "timerMinutes": 6, "timerLabel": "Dorar pollo", "relevantIngredientIds": ["pch_1"]},
+      {"id": "pch_step_2", "stepNumber": 2, "title": "Saltear hongos", "instruction": "Saltea champiñones en la sartén.", "timerMinutes": 6, "timerLabel": "Champiñones", "relevantIngredientIds": ["pch_2"]},
+      {"id": "pch_step_3", "stepNumber": 3, "title": "Reducir crema", "instruction": "Añade crema y caldo, deja espesar.", "timerMinutes": 6, "timerLabel": "Reducir salsa", "relevantIngredientIds": ["pch_3"]}
+    ]
+  },
+  {
+    "id": "shakshuka-huevos",
+    "title": "Shakshuka con Huevos Pochados",
+    "description": "Huevos cocinados suavemente en una espesa salsa de tomates maduros, pimientos asados, comino y pimentón.",
+    "imageUrl": "https://images.unsplash.com/photo-1590412200988-a436970781fa?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 25,
+    "difficulty": "facil",
+    "defaultPortions": 2,
+    "dietaryTags": ["Vegetariano", "Desayuno", "Brunch", "Sin Gluten", "Rápido"],
+    "isVegetarian": true,
+    "isVegan": false,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "shk_1", "name": "Huevos frescos", "baseQuantity": 4, "unit": "unidades", "category": "Huevos"},
+      {"id": "shk_2", "name": "Tomate triturado", "baseQuantity": 400, "unit": "g", "category": "Verduras"},
+      {"id": "shk_3", "name": "Pimiento rojo", "baseQuantity": 1, "unit": "unidad", "category": "Verduras"}
+    ],
+    "steps": [
+      {"id": "shk_step_1", "stepNumber": 1, "title": "Pochar verduras", "instruction": "Cocina cebolla y pimiento tiernos.", "timerMinutes": 7, "timerLabel": "Verduras", "relevantIngredientIds": ["shk_3"]},
+      {"id": "shk_step_2", "stepNumber": 2, "title": "Espesar salsa", "instruction": "Cocina tomate con comino hasta espesar.", "timerMinutes": 8, "timerLabel": "Salsa", "relevantIngredientIds": ["shk_2"]},
+      {"id": "shk_step_3", "stepNumber": 3, "title": "Cuajar huevos", "instruction": "Casca huevos y tapa hasta cuajar claras.", "timerMinutes": 5, "timerLabel": "Cuajar huevos", "relevantIngredientIds": ["shk_1"]}
+    ]
+  },
+  {
+    "id": "curry-verde-tofu",
+    "title": "Curry Verde Tailandés con Tofu",
+    "description": "Aromático, exótico y cremoso con leche de coco, pasta de curry verde, calabacín, berenjena y albahaca.",
+    "imageUrl": "https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 30,
+    "difficulty": "medio",
+    "defaultPortions": 3,
+    "dietaryTags": ["Vegetariano", "Vegano", "Sin Gluten", "Asiática", "Especiado"],
+    "isVegetarian": true,
+    "isVegan": true,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "cur_1", "name": "Tofu firme en dados", "baseQuantity": 300, "unit": "g", "category": "Proteínas"},
+      {"id": "cur_2", "name": "Leche de coco cremosa", "baseQuantity": 400, "unit": "ml", "category": "Líquidos"},
+      {"id": "cur_3", "name": "Pasta curry verde", "baseQuantity": 2, "unit": "cda", "category": "Salsas"}
+    ],
+    "steps": [
+      {"id": "cur_step_1", "stepNumber": 1, "title": "Dorar tofu", "instruction": "Dora el tofu por todos sus lados.", "timerMinutes": 6, "timerLabel": "Tofu", "relevantIngredientIds": ["cur_1"]},
+      {"id": "cur_step_2", "stepNumber": 2, "title": "Cocinar curry", "instruction": "Hierve suavemente con leche de coco y verduras.", "timerMinutes": 10, "timerLabel": "Hervir curry", "relevantIngredientIds": ["cur_2", "cur_3"]}
+    ]
+  },
+  {
+    "id": "tortilla-espanola",
+    "title": "Tortilla Española Jugosa",
+    "description": "El monumento de la gastronomía española: papas pochadas a fuego lento, cebolla caramelizada y centro tierno.",
+    "imageUrl": "https://images.unsplash.com/photo-1584947926227-2c1b2f7035bf?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 35,
+    "difficulty": "medio",
+    "defaultPortions": 4,
+    "dietaryTags": ["Vegetariano", "Sin Gluten", "Española", "Tradicional"],
+    "isVegetarian": true,
+    "isVegan": false,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "tor_1", "name": "Papas en rodajas finas", "baseQuantity": 600, "unit": "g", "category": "Tubérculos"},
+      {"id": "tor_2", "name": "Huevos frescos", "baseQuantity": 6, "unit": "unidades", "category": "Huevos"},
+      {"id": "tor_3", "name": "Cebolla dulce", "baseQuantity": 1, "unit": "unidad", "category": "Verduras"}
+    ],
+    "steps": [
+      {"id": "tor_step_1", "stepNumber": 1, "title": "Pochar papas", "instruction": "Confitar papas y cebolla a fuego lento en aceite.", "timerMinutes": 16, "timerLabel": "Pochar papas", "relevantIngredientIds": ["tor_1", "tor_3"]},
+      {"id": "tor_step_2", "stepNumber": 2, "title": "Cuajar y sellar", "instruction": "Cuaja 2 min por lado en sartén bien caliente.", "timerMinutes": 4, "timerLabel": "Cuajado tortilla", "relevantIngredientIds": ["tor_2"]}
+    ]
+  }
+]

@@ -19,8 +19,11 @@ class CatalogScreen extends StatefulWidget {
 class _CatalogScreenState extends State<CatalogScreen> {
   final _searchController = TextEditingController();
 
+  static const String _favCategory = 'Favoritos';
+
   final List<String> _categories = [
     'Todos',
+    'Favoritos',
     'Vegetariano',
     'Vegano',
     'Sin Gluten',
@@ -38,6 +41,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
     final recipeProv = context.watch<RecipeProvider>();
     final authProv = context.watch<AuthProvider>();
     final favorites = authProv.user?.favoriteRecipeIds ?? [];
+    final showingFavorites = recipeProv.selectedCategory == _favCategory;
+
+    // Cuando el filtro es "Favoritos", filtramos por favoriteRecipeIds en la UI
+    final displayedRecipes = showingFavorites
+        ? recipeProv.filteredRecipes
+            .where((r) => favorites.contains(r.id))
+            .toList()
+        : recipeProv.filteredRecipes;
 
     return Scaffold(
       backgroundColor: AppColors.creamBackground,
@@ -54,9 +65,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
       ),
       body: Column(
         children: [
-          // Barra de búsqueda con bordes gruesos
+          // Barra de búsqueda
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
             child: TextField(
               controller: _searchController,
               onChanged: (val) => recipeProv.setSearchQuery(val),
@@ -77,7 +89,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
             ),
           ),
 
-          // Chips de categorías culinarias
+          // Chips de categorías
           SizedBox(
             height: 48,
             child: ListView.separated(
@@ -88,12 +100,31 @@ class _CatalogScreenState extends State<CatalogScreen> {
               itemBuilder: (context, index) {
                 final cat = _categories[index];
                 final isSelected = recipeProv.selectedCategory == cat;
+                final isFavChip = cat == _favCategory;
                 return ChoiceChip(
+                  avatar: isFavChip
+                      ? Icon(
+                          isSelected
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          size: 16,
+                          color: isSelected
+                              ? Colors.white
+                              : AppColors.accentOrange,
+                        )
+                      : null,
                   label: Text(cat),
                   selected: isSelected,
-                  selectedColor: AppColors.accentOrange,
+                  selectedColor: isFavChip
+                      ? AppColors.accentOrange
+                      : AppColors.accentOrange,
                   backgroundColor: Colors.white,
-                  side: const BorderSide(color: AppColors.outlineDark, width: 1.5),
+                  side: BorderSide(
+                    color: isFavChip
+                        ? AppColors.accentOrange
+                        : AppColors.outlineDark,
+                    width: 1.5,
+                  ),
                   labelStyle: AppTypography.badge.copyWith(
                     color: isSelected ? Colors.white : AppColors.textDark,
                   ),
@@ -113,46 +144,19 @@ class _CatalogScreenState extends State<CatalogScreen> {
             child: recipeProv.isLoading
                 ? const Center(
                     child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          AppColors.primaryTeal),
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(AppColors.primaryTeal),
                     ),
                   )
-                : recipeProv.filteredRecipes.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32.0),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.search_off_rounded,
-                                size: 64,
-                                color: AppColors.primaryTeal,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No encontramos recetas',
-                                style: AppTypography.titleLarge,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Prueba buscando con otro ingrediente o desmarcando los filtros.',
-                                style: AppTypography.bodyMedium.copyWith(
-                                  color: AppColors.textMuted,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
+                : displayedRecipes.isEmpty
+                    ? _buildEmptyState(showingFavorites)
                     : ListView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        itemCount: recipeProv.filteredRecipes.length,
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 20.0),
+                        itemCount: displayedRecipes.length,
                         itemBuilder: (context, index) {
-                          final recipe = recipeProv.filteredRecipes[index];
+                          final recipe = displayedRecipes[index];
                           final isFav = favorites.contains(recipe.id);
-
                           return RecipeCard(
                             recipe: recipe,
                             isFavorite: isFav,
@@ -163,9 +167,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                               recipeProv.selectRecipe(recipe);
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => RecipeDetailScreen(
-                                    recipe: recipe,
-                                  ),
+                                  builder: (_) =>
+                                      RecipeDetailScreen(recipe: recipe),
                                 ),
                               );
                             },
@@ -174,6 +177,55 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool isFavorites) {
+    if (isFavorites) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.favorite_border_rounded,
+                  size: 72, color: AppColors.accentOrange),
+              const SizedBox(height: 16),
+              Text('Aún no tienes favoritas',
+                  style: AppTypography.titleLarge,
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              Text(
+                'Toca el ♥ en cualquier receta para guardarla aquí.',
+                style: AppTypography.bodyMedium
+                    .copyWith(color: AppColors.textMuted),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.search_off_rounded,
+                size: 64, color: AppColors.primaryTeal),
+            const SizedBox(height: 16),
+            Text('No encontramos recetas', style: AppTypography.titleLarge),
+            const SizedBox(height: 8),
+            Text(
+              'Prueba buscando con otro ingrediente o desmarcando los filtros.',
+              style: AppTypography.bodyMedium
+                  .copyWith(color: AppColors.textMuted),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }

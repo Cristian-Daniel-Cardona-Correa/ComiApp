@@ -4,6 +4,8 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../providers/auth_provider.dart';
+import '../../../home/presentation/screens/home_shell_screen.dart';
+import 'privacy_consent_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -33,9 +35,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _emailController.text,
       _passwordController.text,
     );
-    if (success && mounted) {
-      Navigator.of(context).pop();
-    } else if (!success && mounted && auth.errorMessage != null) {
+    if (!mounted) return;
+    if (success) {
+      final user = auth.user;
+      if (user != null && !user.hasAcceptedPrivacyConsent) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => PrivacyConsentScreen(
+              onConsentAccepted: () {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const HomeShellScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+          ),
+          (route) => false,
+        );
+      } else {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const HomeShellScreen()),
+          (route) => false,
+        );
+      }
+    } else if (auth.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(auth.errorMessage!),

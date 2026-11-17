@@ -4,6 +4,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../models/user_profile.dart';
 import '../../providers/auth_provider.dart';
+import 'login_screen.dart';
 import 'privacy_consent_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -128,12 +129,13 @@ class ProfileScreen extends StatelessWidget {
             // Preferencias Dietéticas
             Text('Preferencias y Dietas', style: AppTypography.titleMedium),
             const SizedBox(height: 10),
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
+            Material(
+              color: Colors.white,
+              shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.outlineDark, width: 2),
+                side: const BorderSide(color: AppColors.outlineDark, width: 2),
               ),
+              clipBehavior: Clip.antiAlias,
               child: Column(
                 children: [
                   SwitchListTile(
@@ -181,28 +183,38 @@ class ProfileScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Acceso a Privacidad / Habeas Data
-            ListTile(
+            Material(
+              color: AppColors.mintSoft,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: const BorderSide(color: AppColors.outlineDark, width: 1.5),
               ),
-              tileColor: AppColors.mintSoft,
-              leading: const Icon(Icons.privacy_tip_outlined,
-                  color: AppColors.primaryTeal),
-              title: const Text('Política de Privacidad y Habeas Data'),
-              trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const PrivacyConsentScreen()),
-                );
-              },
+              child: ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined,
+                    color: AppColors.primaryTeal),
+                title: const Text('Política de Privacidad y Habeas Data'),
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 18),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const PrivacyConsentScreen()),
+                  );
+                },
+              ),
             ),
             const SizedBox(height: 24),
 
             // Botón cerrar sesión
             OutlinedButton.icon(
-              onPressed: () => auth.signOut(),
+              onPressed: () async {
+                await auth.signOut();
+                if (context.mounted) {
+                  Navigator.of(context).pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                    (route) => false,
+                  );
+                }
+              },
               icon: const Icon(Icons.logout, color: AppColors.errorCoral),
               label: Text(
                 'Cerrar Sesión',

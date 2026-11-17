@@ -1,0 +1,115 @@
+[
+  {
+    "id": "pasta-carbonara",
+    "title": "Pasta Carbonara Tradicional",
+    "description": "La auténtica receta romana sin nata: yemas cremosas, queso pecorino, pimienta negra recién molida y panceta crujiente.",
+    "imageUrl": "https://images.unsplash.com/photo-1612874742237-6526221588e3?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 20,
+    "difficulty": "medio",
+    "defaultPortions": 2,
+    "dietaryTags": ["Rápido", "Pasta", "Italiana", "Clásica"],
+    "isVegetarian": false,
+    "isVegan": false,
+    "isGlutenFree": false,
+    "ingredients": [
+      {"id": "carb_1", "name": "Espaguetis", "baseQuantity": 200, "unit": "g", "category": "Pasta"},
+      {"id": "carb_2", "name": "Panceta o tocineta gruesa en cubos", "baseQuantity": 120, "unit": "g", "category": "Carnes"},
+      {"id": "carb_3", "name": "Yemas de huevo fresco", "baseQuantity": 3, "unit": "unidades", "category": "Huevos"},
+      {"id": "carb_4", "name": "Queso Pecorino o Parmesano rallado", "baseQuantity": 60, "unit": "g", "category": "Lácteos"},
+      {"id": "carb_5", "name": "Pimienta negra recién molida", "baseQuantity": 1, "unit": "cdta", "category": "Especias"},
+      {"id": "carb_6", "name": "Sal para el agua de la pasta", "baseQuantity": 15, "unit": "g", "category": "Condimentos"}
+    ],
+    "steps": [
+      {
+        "id": "carb_step_1",
+        "stepNumber": 1,
+        "title": "Poner el agua a hervir",
+        "instruction": "Pon una olla grande con abundante agua a fuego alto. Cuando rompa a hervir con fuerza, añade la sal.",
+        "relevantIngredientIds": ["carb_6"]
+      },
+      {
+        "id": "carb_step_2",
+        "stepNumber": 2,
+        "title": "Dorar la panceta",
+        "instruction": "En una sartén fría a fuego medio-bajo, coloca los cubos de tocineta sin aceite adicional. Deja que suelte su propia grasa hasta quedar dorada y crujiente.",
+        "timerMinutes": 6,
+        "timerLabel": "Dorar panceta",
+        "relevantIngredientIds": ["carb_2"]
+      },
+      {
+        "id": "carb_step_3",
+        "stepNumber": 3,
+        "title": "Cocinar la pasta al dente",
+        "instruction": "Agrega los espaguetis al agua hirviendo. Remueve durante los primeros 30 segundos y cocina al dente según el temporizador.",
+        "timerMinutes": 9,
+        "timerLabel": "Hervir espaguetis",
+        "relevantIngredientIds": ["carb_1"]
+      },
+      {
+        "id": "carb_step_4",
+        "stepNumber": 4,
+        "title": "Mezclar la crema de yemas",
+        "instruction": "En un tazón hondo bate las yemas con el queso rallado y abundante pimienta negra hasta formar una pasta espesa.",
+        "relevantIngredientIds": ["carb_3", "carb_4", "carb_5"]
+      },
+      {
+        "id": "carb_step_5",
+        "stepNumber": 5,
+        "title": "Emulsionar fuera del fuego",
+        "instruction": "Pasa la pasta caliente recién escurrida a la sartén con la panceta (con el fuego apagado). Vierte la mezcla de yemas y un chorrito de agua de pasta. Mezcla enérgicamente.",
+        "relevantIngredientIds": ["carb_1", "carb_2", "carb_3", "carb_4"]
+      }
+    ]
+  },
+  {
+    "id": "arroz-con-pollo",
+    "title": "Arroz con Pollo Casero Latino",
+    "description": "Plato insignia lleno de sabor con pollo sazonado, sofrito criollo, verduras frescas y arroz dorado sueltito.",
+    "imageUrl": "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 45,
+    "difficulty": "medio",
+    "defaultPortions": 4,
+    "dietaryTags": ["Almuerzo", "Tradicional", "Pollo", "Completo"],
+    "isVegetarian": false,
+    "isVegan": false,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "acp_1", "name": "Pechuga de pollo en dados", "baseQuantity": 500, "unit": "g", "category": "Carnes"},
+      {"id": "acp_2", "name": "Arroz blanco", "baseQuantity": 300, "unit": "g", "category": "Granos"},
+      {"id": "acp_3", "name": "Cebolla cabezona picada", "baseQuantity": 1, "unit": "unidad", "category": "Verduras"},
+      {"id": "acp_4", "name": "Pimentón rojo en tiritas", "baseQuantity": 1, "unit": "unidad", "category": "Verduras"},
+      {"id": "acp_5", "name": "Arvejas y zanahorias", "baseQuantity": 150, "unit": "g", "category": "Verduras"},
+      {"id": "acp_6", "name": "Caldo de pollo caliente", "baseQuantity": 650, "unit": "ml", "category": "Líquidos"}
+    ],
+    "steps": [
+      {"id": "acp_step_1", "stepNumber": 1, "title": "Sellar el pollo", "instruction": "Sella los trozos de pollo en aceite caliente hasta que doren.", "timerMinutes": 6, "timerLabel": "Sellar pollo", "relevantIngredientIds": ["acp_1"]},
+      {"id": "acp_step_2", "stepNumber": 2, "title": "Sofrito criollo", "instruction": "Añade cebolla y pimentón a la olla. Cocina hasta que transparente.", "timerMinutes": 7, "timerLabel": "Sofrito", "relevantIngredientIds": ["acp_3", "acp_4"]},
+      {"id": "acp_step_3", "stepNumber": 3, "title": "Mezclar arroz", "instruction": "Incorpora el arroz y las verduras. Sofríe 2 minutos.", "relevantIngredientIds": ["acp_2", "acp_5"]},
+      {"id": "acp_step_4", "stepNumber": 4, "title": "Cocinar tapado", "instruction": "Vierte el caldo caliente. Deja secar, baja el fuego y tapa.", "timerMinutes": 20, "timerLabel": "Cocinar arroz", "relevantIngredientIds": ["acp_6"]}
+    ]
+  },
+  {
+    "id": "sopa-lentejas",
+    "title": "Sopa de Lentejas Casera Reconfortante",
+    "description": "Nutritiva, caliente y espesa. Con verduras salteadas, papita en cubos y un toque ahumado de comino y laurel.",
+    "imageUrl": "https://images.unsplash.com/photo-1547592166-23ac45744acd?auto=format&fit=crop&w=800&q=80",
+    "prepTimeMinutes": 35,
+    "difficulty": "facil",
+    "defaultPortions": 4,
+    "dietaryTags": ["Vegetariano", "Vegano", "Sin Gluten", "Saludable"],
+    "isVegetarian": true,
+    "isVegan": true,
+    "isGlutenFree": true,
+    "ingredients": [
+      {"id": "len_1", "name": "Lentejas pardinas", "baseQuantity": 250, "unit": "g", "category": "Granos"},
+      {"id": "len_2", "name": "Papas medianas", "baseQuantity": 2, "unit": "unidades", "category": "Tubérculos"},
+      {"id": "len_3", "name": "Zanahoria en cubos", "baseQuantity": 1, "unit": "unidad", "category": "Verduras"},
+      {"id": "len_4", "name": "Agua o caldo", "baseQuantity": 1000, "unit": "ml", "category": "Líquidos"}
+    ],
+    "steps": [
+      {"id": "len_step_1", "stepNumber": 1, "title": "Sofreír verduras", "instruction": "Sofríe zanahoria, cebolla y comino hasta que suelten jugo.", "timerMinutes": 5, "timerLabel": "Sofreír", "relevantIngredientIds": ["len_3"]},
+      {"id": "len_step_2", "stepNumber": 2, "title": "Cocinar lentejas", "instruction": "Agrega lentejas y agua. Cocina a fuego medio-bajo.", "timerMinutes": 15, "timerLabel": "Hervir lentejas", "relevantIngredientIds": ["len_1", "len_4"]},
+      {"id": "len_step_3", "stepNumber": 3, "title": "Espesar con papas", "instruction": "Agrega papas y cocina hasta tiernas.", "timerMinutes": 12, "timerLabel": "Cocinar papas", "relevantIngredientIds": ["len_2"]}
+    ]
+  }
+]

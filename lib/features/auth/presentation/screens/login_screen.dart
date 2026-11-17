@@ -4,6 +4,8 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../providers/auth_provider.dart';
+import '../../../home/presentation/screens/home_shell_screen.dart';
+import 'privacy_consent_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -25,13 +27,42 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
+  void _onAuthSuccess() {
+    if (!mounted) return;
+    final auth = context.read<AuthProvider>();
+    final user = auth.user;
+    if (user != null && !user.hasAcceptedPrivacyConsent) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => PrivacyConsentScreen(
+            onConsentAccepted: () {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const HomeShellScreen()),
+                (route) => false,
+              );
+            },
+          ),
+        ),
+        (route) => false,
+      );
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeShellScreen()),
+        (route) => false,
+      );
+    }
+  }
+
   void _handleLogin() async {
     final auth = context.read<AuthProvider>();
     final success = await auth.signInWithEmail(
       _emailController.text,
       _passwordController.text,
     );
-    if (!success && mounted && auth.errorMessage != null) {
+    if (!mounted) return;
+    if (success) {
+      _onAuthSuccess();
+    } else if (auth.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(auth.errorMessage!),
@@ -43,12 +74,34 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleGoogleLogin() async {
     final auth = context.read<AuthProvider>();
-    await auth.signInWithGoogle();
+    final success = await auth.signInWithGoogle();
+    if (!mounted) return;
+    if (success) {
+      _onAuthSuccess();
+    } else if (auth.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.errorMessage!),
+          backgroundColor: AppColors.errorCoral,
+        ),
+      );
+    }
   }
 
   void _handleGuestLogin() async {
     final auth = context.read<AuthProvider>();
-    await auth.signInAsGuest();
+    final success = await auth.signInAsGuest();
+    if (!mounted) return;
+    if (success) {
+      _onAuthSuccess();
+    } else if (auth.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(auth.errorMessage!),
+          backgroundColor: AppColors.errorCoral,
+        ),
+      );
+    }
   }
 
   @override

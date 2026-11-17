@@ -72,27 +72,29 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.mintSoft.withValues(alpha: 0.5),
+              Material(
+                color: AppColors.mintSoft.withValues(alpha: 0.5),
+                shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: CheckboxListTile(
-                  value: _acceptedTerms,
-                  activeColor: AppColors.primaryTeal,
-                  title: Text(
-                    'Entiendo y autorizo el uso efímero de audio y cámara para el asistente culinario.',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.textDark,
-                      fontWeight: FontWeight.w600,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: CheckboxListTile(
+                    value: _acceptedTerms,
+                    activeColor: AppColors.primaryTeal,
+                    title: Text(
+                      'Entiendo y autorizo el uso efímero de audio y cámara para el asistente culinario.',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textDark,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
+                    onChanged: (val) {
+                      setState(() {
+                        _acceptedTerms = val ?? false;
+                      });
+                    },
                   ),
-                  onChanged: (val) {
-                    setState(() {
-                      _acceptedTerms = val ?? false;
-                    });
-                  },
                 ),
               ),
               const SizedBox(height: 20),

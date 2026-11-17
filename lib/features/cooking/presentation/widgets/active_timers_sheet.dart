@@ -119,6 +119,7 @@ class ActiveTimersSheet extends StatelessWidget {
                           onPause: () => timerProv.pauseTimer(timer.id),
                           onResume: () => timerProv.resumeTimer(timer.id),
                           onAddMinute: () => timerProv.addOneMinute(timer.id),
+                          onRemoveMinute: () => timerProv.removeOneMinute(timer.id),
                           onCancel: () => timerProv.cancelTimer(timer.id),
                         );
                       },

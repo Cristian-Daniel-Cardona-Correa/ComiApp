@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../models/ai_session_state.dart';
@@ -9,8 +10,10 @@ import '../services/gemini_live_client.dart';
 import '../services/mock_gemini_live_client.dart';
 
 class AiChefProvider extends ChangeNotifier {
-  final AsistenteIA _assistant;
+  AsistenteIA _assistant;
   final _uuid = const Uuid();
+  static const String _geminiApiKeyPref = 'comiapp_gemini_api_key';
+  String _currentApiKey = '';
 
   AiAssistantStatus _status = AiAssistantStatus.desconectado;
   bool _isMicMuted = false;
@@ -18,6 +21,7 @@ class AiChefProvider extends ChangeNotifier {
   String _latestTranscript = '';
   final List<AiMessage> _messages = [];
   String? _lastToolActionResult;
+  String? _currentRecipeId;
 
   // Temporizador de duración de sesión y avisos de límites
   Timer? _sessionDurationTimer;
@@ -35,11 +39,59 @@ class AiChefProvider extends ChangeNotifier {
   void Function(String label)? onCancelTimerRequested;
 
   AiChefProvider({AsistenteIA? customAssistant, String apiKey = ''})
-      : _assistant = customAssistant ??
+      : _currentApiKey = apiKey,
+        _assistant = customAssistant ??
             (apiKey.isNotEmpty && apiKey != 'mock_or_demo_key'
                 ? GeminiLiveClient(apiKey: apiKey)
                 : MockGeminiLiveClient()) {
     _subscribe();
+    _loadSavedApiKey();
+  }
+
+  bool get isRealGeminiLive => _assistant is GeminiLiveClient;
+  String get currentApiKey => _currentApiKey;
+
+  Future<void> _loadSavedApiKey() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedKey = prefs.getString(_geminiApiKeyPref);
+      if (savedKey != null &&
+          savedKey.isNotEmpty &&
+          savedKey != 'mock_or_demo_key' &&
+          _currentApiKey.isEmpty) {
+        await setApiKey(savedKey);
+      }
+    } catch (e) {
+      debugPrint('Error loading saved Gemini API Key: $e');
+    }
+  }
+
+  Future<void> setApiKey(String key) async {
+    final cleanKey = key.trim();
+    _currentApiKey = cleanKey;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (cleanKey.isEmpty || cleanKey == 'mock_or_demo_key') {
+        await prefs.remove(_geminiApiKeyPref);
+        _assistant = MockGeminiLiveClient();
+      } else {
+        await prefs.setString(_geminiApiKeyPref, cleanKey);
+        _assistant = GeminiLiveClient(apiKey: cleanKey);
+      }
+    } catch (_) {
+      if (cleanKey.isNotEmpty && cleanKey != 'mock_or_demo_key') {
+        _assistant = GeminiLiveClient(apiKey: cleanKey);
+      } else {
+        _assistant = MockGeminiLiveClient();
+      }
+    }
+
+    _statusSub?.cancel();
+    _transcriptSub?.cancel();
+    _toolCallSub?.cancel();
+    _subscribe();
+    notifyListeners();
   }
 
   AiAssistantStatus get status => _status;
@@ -50,6 +102,15 @@ class AiChefProvider extends ChangeNotifier {
   String? get lastToolActionResult => _lastToolActionResult;
   String? get sessionLimitWarning => _sessionLimitWarning;
   int get sessionSeconds => _sessionSeconds;
+  String? get currentRecipeId => _currentRecipeId;
+
+  /// Reinicia el historial del chat para iniciar una conversación limpia
+  void clearConversation() {
+    _messages.clear();
+    _latestTranscript = '';
+    _lastToolActionResult = null;
+    notifyListeners();
+  }
 
   void _subscribe() {
     _statusSub = _assistant.statusStream.listen((newStatus) {
@@ -111,6 +172,13 @@ class AiChefProvider extends ChangeNotifier {
   }
 
   Future<void> startSession(AiCookingContext context) async {
+    // Si es una receta distinta o nueva, reiniciar el historial de chat completamente
+    if (_currentRecipeId != context.recipe.id) {
+      _messages.clear();
+      _latestTranscript = '';
+      _lastToolActionResult = null;
+      _currentRecipeId = context.recipe.id;
+    }
     _sessionSeconds = 0;
     _sessionLimitWarning = null;
     _startSessionTimer();
@@ -148,10 +216,16 @@ class AiChefProvider extends ChangeNotifier {
   void toggleCamera() {
     _isCameraActive = !_isCameraActive;
     if (_isCameraActive) {
-      // Simulación de fotograma JPEG de cámara (768x768)
+      // Simulación de fotograma inicial JPEG de cámara (768x768)
       _assistant.sendCameraFrame([0xFF, 0xD8, 0xFF, 0xE0]);
     }
     notifyListeners();
+  }
+
+  void sendCameraFrame(List<int> jpegBytes) {
+    if (_isCameraActive) {
+      _assistant.sendCameraFrame(jpegBytes);
+    }
   }
 
   void interruptChef() {

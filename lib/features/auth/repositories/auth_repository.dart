@@ -12,7 +12,8 @@ abstract class AuthRepository {
   Future<UserProfile> signInWithEmailPassword(String email, String password);
   Future<UserProfile> registerWithEmailPassword(
       String name, String email, String password);
-  Future<UserProfile> signInWithGoogle();
+  Future<UserProfile> signInWithGoogle(
+      {String? email, String? name, String? photoUrl});
   Future<UserProfile> signInAsGuest();
   Future<void> updatePreferences(DietaryPreferences prefs);
   Future<void> toggleFavorite(String recipeId);
@@ -192,26 +193,37 @@ class LocalAuthRepository implements AuthRepository {
     }
   }
 
-  // ─── Google (demo, sin OAuth real) ────────────────────────────────────────
+  // ─── Google (autenticación y perfil de usuario) ───────────────────────────
 
   @override
-  Future<UserProfile> signInWithGoogle() async {
+  Future<UserProfile> signInWithGoogle({
+    String? email,
+    String? name,
+    String? photoUrl,
+  }) async {
     await Future.delayed(const Duration(milliseconds: 700));
 
-    // Buscar si ya existe el demo de Google para reusar perfil
+    final targetEmail = email?.trim().toLowerCase() ?? 'chef.demo@google.com';
+    final targetName =
+        (name != null && name.trim().isNotEmpty) ? name.trim() : 'Usuario de Google';
+
     final db = await _loadUsersDb();
-    const googleEmail = 'chef.demo@google.com';
     UserProfile user;
-    if (db.containsKey(googleEmail)) {
+    if (db.containsKey(targetEmail)) {
       try {
         user = UserProfile.fromMap(
-            Map<String, dynamic>.from(db[googleEmail]!['profile'] as Map));
+            Map<String, dynamic>.from(db[targetEmail]!['profile'] as Map));
+        if (name != null && name.trim().isNotEmpty && user.name != targetName) {
+          user = user.copyWith(name: targetName);
+          db[targetEmail]!['profile'] = user.toMap();
+          await _saveUsersDb(db);
+        }
       } catch (_) {
-        user = _buildGoogleDemoUser();
+        user = _buildGoogleUser(targetEmail, targetName, photoUrl);
       }
     } else {
-      user = _buildGoogleDemoUser();
-      db[googleEmail] = {
+      user = _buildGoogleUser(targetEmail, targetName, photoUrl);
+      db[targetEmail] = {
         'passwordHash': _hashPassword(_uuid.v4()),
         'profile': user.toMap(),
       };
@@ -222,16 +234,17 @@ class LocalAuthRepository implements AuthRepository {
     return user;
   }
 
-  UserProfile _buildGoogleDemoUser() => UserProfile(
+  UserProfile _buildGoogleUser(String email, String name, String? photoUrl) =>
+      UserProfile(
         id: _uuid.v4(),
-        name: 'Chef Google Demo',
-        email: 'chef.demo@google.com',
-        photoUrl:
+        name: name,
+        email: email,
+        photoUrl: photoUrl ??
             'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
         preferences: const DietaryPreferences(
           experience: CookingExperience.intermedio,
         ),
-        hasAcceptedPrivacyConsent: true,
+        hasAcceptedPrivacyConsent: false,
         createdAt: DateTime.now(),
       );
 

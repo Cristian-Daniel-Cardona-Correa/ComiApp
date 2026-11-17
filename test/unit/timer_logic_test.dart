@@ -71,6 +71,23 @@ void main() {
       provider.dispose();
     });
 
+    test('removeOneMinute subtracts 60 seconds from existing timer', () {
+      final provider = TimerProvider();
+      final timer = provider.startTimer(
+        label: 'Prueba Té',
+        recipeId: 'r3',
+        stepId: 's3',
+        minutes: 5,
+      );
+
+      provider.removeOneMinute(timer.id);
+      final updated = provider.timers.firstWhere((t) => t.id == timer.id);
+      expect(updated.remainingSeconds, 240); // 300 - 60
+      expect(updated.totalDurationSeconds, 240);
+
+      provider.dispose();
+    });
+
     test('Multiple concurrent timers run in parallel', () {
       final provider = TimerProvider();
       final timer1 = provider.startTimer(

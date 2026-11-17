@@ -8,6 +8,7 @@ class TimerCard extends StatelessWidget {
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onAddMinute;
+  final VoidCallback onRemoveMinute;
   final VoidCallback onCancel;
 
   const TimerCard({
@@ -16,6 +17,7 @@ class TimerCard extends StatelessWidget {
     required this.onPause,
     required this.onResume,
     required this.onAddMinute,
+    required this.onRemoveMinute,
     required this.onCancel,
   });
 
@@ -49,12 +51,13 @@ class TimerCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Cabecera del temporizador
+          // Cabecera
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
               color: headerBg,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(18)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -130,16 +133,17 @@ class TimerCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
 
-                // Controles: Pausar/Reanudar, +1 min, Cancelar
-                Row(
-                  children: [
-                    if (!isFinished) ...[
+                // Fila 1: Pausar/Reanudar + Cancelar
+                if (!isFinished)
+                  Row(
+                    children: [
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: isRunning ? onPause : onResume,
                           style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(0, 42),
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            minimumSize: const Size(0, 44),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 8),
                           ),
                           icon: Icon(
                             isRunning
@@ -151,25 +155,44 @@ class TimerCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded,
+                            color: AppColors.errorCoral),
+                        tooltip: 'Cancelar temporizador',
+                        onPressed: onCancel,
+                      ),
                     ],
+                  ),
+                const SizedBox(height: 8),
+
+                // Fila 2: -1 min y +1 min
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onRemoveMinute,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          side: const BorderSide(
+                              color: AppColors.outlineDark, width: 1.5),
+                        ),
+                        icon: const Icon(Icons.remove, size: 18),
+                        label: const Text('-1 min'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: onAddMinute,
                         style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(0, 42),
+                          minimumSize: const Size(0, 44),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           backgroundColor: AppColors.highlightYellow,
                         ),
                         icon: const Icon(Icons.add, size: 18),
                         label: const Text('+1 min'),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded,
-                          color: AppColors.errorCoral),
-                      tooltip: 'Cancelar temporizador',
-                      onPressed: onCancel,
                     ),
                   ],
                 ),

@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../models/user_profile.dart';
 
 /// Contrato del repositorio de autenticación
@@ -228,10 +230,13 @@ class LocalAuthRepository implements AuthRepository {
   @override
   Future<UserProfile> signInWithGoogle() async {
     try {
-      // 1. Iniciar el flujo nativo oficial de selección de cuenta de Google
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      // 1. Iniciar el flujo nativo oficial pasando el serverClientId de Firebase
+      final googleSignIn = GoogleSignIn(
+        serverClientId: AppConstants.googleServerClientId,
+      );
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
-        throw 'Inicio de sesión con Google cancelado por el usuario';
+        throw 'Inicio de sesión con Google cancelado';
       }
 
       // 2. Obtener los detalles de autenticación del request
@@ -282,6 +287,12 @@ class LocalAuthRepository implements AuthRepository {
 
       await _saveSession(user);
       return user;
+    } on PlatformException catch (e) {
+      debugPrint('[comiAPP Auth] PlatformException en Google Sign-In: ${e.code} - ${e.message}');
+      if (e.message?.contains('10:') == true || e.code == 'sign_in_failed') {
+        throw 'Error de configuración de Google (Código 10): Registra la huella SHA-1 de tu máquina en la consola de Firebase del proyecto comiapp-fea78.';
+      }
+      rethrow;
     } catch (e) {
       debugPrint('[comiAPP Auth] Error en signInWithGoogle oficial: $e');
       rethrow;

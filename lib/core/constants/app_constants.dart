@@ -23,6 +23,10 @@ class AppConstants {
   static const String defaultGeminiLiveModel =
       'gemini-2.5-flash-native-audio-preview-12-2025';
 
+  // OAuth Web Client ID de Firebase para Google Sign-In en Android
+  static const String googleServerClientId =
+      '474523548597-c5fjh692tpjnhpqkgq64aca0fr53emp3.apps.googleusercontent.com';
+
   // Límites de sesión Gemini Live
   static const int maxAudioSessionMinutes = 15;
   static const int maxVideoSessionMinutes = 2;

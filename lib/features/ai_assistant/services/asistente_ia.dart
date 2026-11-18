@@ -9,6 +9,8 @@ abstract class AsistenteIA {
   Stream<AiAssistantStatus> get statusStream;
   Stream<String> get transcriptStream;
   Stream<AiToolCall> get toolCallStream;
+  Stream<String> get userTranscriptStream => const Stream.empty();
+  Stream<List<int>> get audioOutputStream => const Stream.empty();
   AiAssistantStatus get currentStatus;
 
   Future<void> connect(AiCookingContext context);

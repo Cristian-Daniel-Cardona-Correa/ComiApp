@@ -259,26 +259,62 @@ class AiChefModal extends StatelessWidget {
                 ),
               ),
 
-            // Barra de controles: Micrófono, Cámara, Chat Fallback, Terminar
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Toggle Micrófono
-                IconButton.filled(
-                  icon: Icon(aiProv.isMicMuted
-                      ? Icons.mic_off_rounded
-                      : Icons.mic_rounded),
-                  style: IconButton.styleFrom(
-                    backgroundColor: aiProv.isMicMuted
+            // Botón principal Push-to-Talk / Tap-to-Talk (estilo asistente de voz IA)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14.0),
+              child: GestureDetector(
+                onTap: () => aiProv.toggleMic(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: aiProv.isRecordingSpeech
                         ? AppColors.errorCoral
                         : AppColors.primaryTeal,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(14),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: AppColors.outlineDark, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (aiProv.isRecordingSpeech
+                                ? AppColors.errorCoral
+                                : AppColors.primaryTeal)
+                            .withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  tooltip: aiProv.isMicMuted ? 'Activar micrófono' : 'Silenciar',
-                  onPressed: () => aiProv.toggleMic(),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        aiProv.isRecordingSpeech
+                            ? Icons.stop_circle_rounded
+                            : Icons.mic_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        aiProv.isRecordingSpeech
+                            ? 'Escuchando... Toca para enviar'
+                            : 'Toca para hablar',
+                        style: AppTypography.titleMedium.copyWith(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
+            ),
 
+            // Barra de controles secundarios: Cámara, Chat Fallback, Terminar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 // Toggle Cámara
                 IconButton.filled(
                   icon: Icon(aiProv.isCameraActive
@@ -288,9 +324,7 @@ class AiChefModal extends StatelessWidget {
                     backgroundColor: aiProv.isCameraActive
                         ? AppColors.accentOrange
                         : Colors.white,
-                    foregroundColor: aiProv.isCameraActive
-                        ? AppColors.textDark
-                        : AppColors.textDark,
+                    foregroundColor: AppColors.textDark,
                     side: const BorderSide(
                         color: AppColors.outlineDark, width: 2),
                     padding: const EdgeInsets.all(14),
@@ -322,18 +356,19 @@ class AiChefModal extends StatelessWidget {
                 ),
 
                 // Terminar sesión
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: () async {
                     await aiProv.endSession();
                     if (context.mounted) Navigator.of(context).pop();
                   },
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  label: const Text('Terminar'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.errorCoral,
                     foregroundColor: Colors.white,
-                    minimumSize: const Size(110, 48),
+                    minimumSize: const Size(120, 48),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
-                  child: const Text('Terminar'),
                 ),
               ],
             ),

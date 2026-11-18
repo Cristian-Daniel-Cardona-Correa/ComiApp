@@ -18,7 +18,7 @@ class AiChefProvider extends ChangeNotifier {
   String _currentModel = AppConstants.defaultGeminiLiveModel;
 
   AiAssistantStatus _status = AiAssistantStatus.desconectado;
-  bool _isMicMuted = false;
+  bool _isMicMuted = true; // Por defecto SIEMPRE silenciado (Push-to-Talk)
   bool _isCameraActive = false;
   String _latestTranscript = '';
   final List<AiMessage> _messages = [];
@@ -87,6 +87,7 @@ class AiChefProvider extends ChangeNotifier {
 
   AiAssistantStatus get status => _status;
   bool get isMicMuted => _isMicMuted;
+  bool get isRecordingSpeech => !_isMicMuted;
   bool get isCameraActive => _isCameraActive;
   String get latestTranscript => _latestTranscript;
   List<AiMessage> get messages => _messages;
@@ -255,17 +256,20 @@ class AiChefProvider extends ChangeNotifier {
     _isUserVoiceTurnActive = false;
     _startSessionTimer();
 
+    // Por defecto el usuario siempre inicia silenciado
+    _isMicMuted = true;
+    _audioManager.setMicMuted(true);
+
     // Conectar WebSocket con Gemini Live
     await _assistant.connect(context);
 
-    // Iniciar captura del micrófono en streaming PCM 16kHz
-    if (!_isMicMuted) {
-      await _audioManager.startMicrophoneStream(
-        onPcmChunk: (pcmChunk) {
-          _assistant.sendUserSpeechChunk(pcmChunk);
-        },
-      );
-    }
+    // Iniciar stream del micrófono en segundo plano (silenciado por defecto)
+    await _audioManager.startMicrophoneStream(
+      onPcmChunk: (pcmChunk) {
+        _assistant.sendUserSpeechChunk(pcmChunk);
+      },
+    );
+    _audioManager.setMicMuted(true);
   }
 
   void _startSessionTimer() {
@@ -291,10 +295,33 @@ class AiChefProvider extends ChangeNotifier {
     });
   }
 
-  void toggleMic() {
-    _isMicMuted = !_isMicMuted;
-    _audioManager.setMicMuted(_isMicMuted);
+  /// Inicia la captura de voz del usuario (desmutea y detiene reproducción previa)
+  Future<void> startSpeaking() async {
+    _audioManager.stopPlayback();
+    _isMicMuted = false;
+    _audioManager.setMicMuted(false);
+    _status = AiAssistantStatus.escuchando;
     notifyListeners();
+  }
+
+  /// Finaliza la captura de voz y envía `audioStreamEnd: true` a Gemini Live
+  /// para provocar la respuesta inmediata del Chef sin esperar silencios largos de VAD
+  Future<void> stopSpeakingAndSend() async {
+    if (_isMicMuted) return;
+    _isMicMuted = true;
+    _audioManager.setMicMuted(true);
+    await _assistant.sendAudioStreamEnd();
+    _status = AiAssistantStatus.pensando;
+    notifyListeners();
+  }
+
+  /// Alterna entre hablar y enviar (para pulsaciones simples de botón)
+  Future<void> toggleMic() async {
+    if (_isMicMuted) {
+      await startSpeaking();
+    } else {
+      await stopSpeakingAndSend();
+    }
   }
 
   void toggleCamera() {

@@ -15,6 +15,7 @@ abstract class AsistenteIA {
 
   Future<void> connect(AiCookingContext context);
   Future<void> sendUserSpeechChunk(List<int> pcm16Bytes);
+  Future<void> sendAudioStreamEnd() => Future.value();
   Future<void> sendCameraFrame(List<int> jpegBytes);
   Future<void> sendTextMessage(String text);
   Future<void> interrupt();

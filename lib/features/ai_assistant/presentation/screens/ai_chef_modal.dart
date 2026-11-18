@@ -196,7 +196,7 @@ class AiChefModal extends StatelessWidget {
                       Text(
                         aiProv.messages.isNotEmpty && aiProv.messages.last.isUser
                             ? 'Tú dijiste:'
-                            : 'El Chef comiAPP:',
+                            : 'La Chef comiAPP:',
                         style: AppTypography.badge
                             .copyWith(color: AppColors.primaryDarkTeal),
                       ),
@@ -206,7 +206,7 @@ class AiChefModal extends StatelessWidget {
                   Text(
                     aiProv.messages.isNotEmpty
                         ? aiProv.messages.last.text
-                        : 'El chef te escucha. Habla con naturalidad o muéstrale tus ingredientes...',
+                        : 'La chef te escucha. Habla con naturalidad o muéstrale tus ingredientes...',
                     style: AppTypography.bodyMedium.copyWith(
                       color: AppColors.textDark,
                       fontStyle: aiProv.messages.isEmpty
@@ -244,7 +244,7 @@ class AiChefModal extends StatelessWidget {
               ),
             const SizedBox(height: 16),
 
-            // Botón de Interrumpir (Barge-in manual) si el chef está hablando
+            // Botón de Interrumpir (Barge-in manual) si la chef está hablando
             if (isSpeaking)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
@@ -252,7 +252,7 @@ class AiChefModal extends StatelessWidget {
                   onPressed: () => aiProv.interruptChef(),
                   icon: const Icon(Icons.pan_tool_rounded,
                       color: AppColors.errorCoral),
-                  label: const Text('Interrumpir al Chef (Barge-in)'),
+                  label: const Text('Interrumpir a la Chef'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.errorCoral,
                     side: const BorderSide(

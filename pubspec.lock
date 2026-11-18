@@ -25,6 +25,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.1"
+  audio_stream_player:
+    dependency: "direct main"
+    description:
+      name: audio_stream_player
+      sha256: e79d63b5912c60e6e585e0dfcd1ae9fed16310c4ff36abc9f00c871867a24ec8
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
   audioplayers:
     dependency: "direct main"
     description:

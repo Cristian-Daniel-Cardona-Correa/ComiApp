@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Nivel culinario del usuario
 enum CookingExperience {
@@ -173,4 +174,41 @@ class UserProfile {
 
   factory UserProfile.fromJson(String source) =>
       UserProfile.fromMap(json.decode(source) as Map<String, dynamic>);
+
+  /// Serialización hacia Firestore (usa Timestamp para fechas)
+  Map<String, dynamic> toFirestore() {
+    return {
+      'name': name,
+      'email': email,
+      'photoUrl': photoUrl,
+      'preferences': preferences.toMap(),
+      'favoriteRecipeIds': favoriteRecipeIds,
+      'hasAcceptedPrivacyConsent': hasAcceptedPrivacyConsent,
+      'createdAt': Timestamp.fromDate(createdAt),
+    };
+  }
+
+  /// Deserialización desde Firestore (el id viene del DocumentSnapshot)
+  factory UserProfile.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    return UserProfile(
+      id: doc.id,
+      name: data['name'] as String? ?? 'Cocinero comiAPP',
+      email: data['email'] as String? ?? '',
+      photoUrl: data['photoUrl'] as String?,
+      preferences: data['preferences'] != null
+          ? DietaryPreferences.fromMap(
+              Map<String, dynamic>.from(data['preferences'] as Map))
+          : const DietaryPreferences(),
+      favoriteRecipeIds:
+          List<String>.from(data['favoriteRecipeIds'] ?? const []),
+      hasAcceptedPrivacyConsent:
+          data['hasAcceptedPrivacyConsent'] as bool? ?? false,
+      createdAt: data['createdAt'] is Timestamp
+          ? (data['createdAt'] as Timestamp).toDate()
+          : (data['createdAt'] is String
+              ? DateTime.tryParse(data['createdAt'] as String) ?? DateTime.now()
+              : DateTime.now()),
+    );
+  }
 }

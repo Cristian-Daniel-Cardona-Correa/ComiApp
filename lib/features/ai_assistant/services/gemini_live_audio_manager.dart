@@ -3,17 +3,20 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:record/record.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:audio_stream_player/audio_stream_player.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 /// Administrador de audio en tiempo real para Gemini Live:
 /// - Captura el audio del micrófono en formato PCM 16-bit 16kHz mono y lo transmite
-/// - Reproduce el audio de respuesta del Chef (PCM 24kHz) usando un buffer WAV en memoria
-/// - Calcula la amplitud RMS en tiempo real (tanto de la voz del usuario como de la IA)
-///   para alimentar el visualizador CAVA reactivo a la voz real
-/// - Detiene la captura y reproducción limpiamente para evitar conflictos de hardware
+/// - Reproduce en STREAMING DIRECTO DE BAJA LATENCIA los chunks de audio de la Chef (PCM 24kHz)
+///   a través de `AudioStreamPlayer` (AudioTrack nativo sin esperar a que termine la frase)
+/// - Mantiene fallback con `AudioPlayer` estándar en memoria
+/// - Calcula la amplitud RMS en tiempo real (voz de usuario y de IA) para el visualizador CAVA
 class GeminiLiveAudioManager {
   final AudioRecorder _audioRecorder = AudioRecorder();
   final AudioPlayer _audioPlayer = AudioPlayer();
+  AudioStreamPlayer? _streamPlayer;
+  bool _useStreamPlayer = true;
 
   StreamSubscription<Uint8List>? _micStreamSub;
   StreamSubscription? _playerCompleteSub;
@@ -24,10 +27,28 @@ class GeminiLiveAudioManager {
   final StreamController<double> _voiceLevelController =
       StreamController<double>.broadcast();
 
-  /// Nivel de volumen de voz actual (0.0 = silencio absoluto, 1.0 = volumen alto)
+  /// Nivel de volumen de voz actual (0.0 = silencio, 1.0 = volumen alto)
   Stream<double> get voiceLevelStream => _voiceLevelController.stream;
 
   bool get isMicActive => _isMicActive;
+
+  Future<void> _ensureStreamPlayer() async {
+    if (!_useStreamPlayer) return;
+    if (_streamPlayer == null) {
+      try {
+        _streamPlayer = await AudioStreamPlayer.create(
+          sampleRate: 24000,
+          channels: 1,
+          format: PcmFormat.s16le,
+        );
+        await _streamPlayer!.play();
+        debugPrint('[comiAPP AudioManager] AudioStreamPlayer nativo inicializado (24kHz s16le).');
+      } catch (e) {
+        debugPrint('[comiAPP AudioManager] AudioStreamPlayer no disponible, usando fallback WAV: $e');
+        _useStreamPlayer = false;
+      }
+    }
+  }
 
   /// Asegura que el micrófono esté transmitiendo limpiamente.
   /// Si el stream anterior se cerró o Android lo suspendió, lo re-inicializa.
@@ -42,7 +63,7 @@ class GeminiLiveAudioManager {
         return false;
       }
 
-      // Si ya estaba grabando, detenerlo para garantizar un stream fresco sin bloqueos
+      // Detener cualquier captura previa para garantizar stream fresco
       try {
         if (await _audioRecorder.isRecording()) {
           await _audioRecorder.stop();
@@ -117,13 +138,44 @@ class GeminiLiveAudioManager {
     debugPrint('[comiAPP AudioManager] Captura de micrófono detenida.');
   }
 
-  /// Acumula chunks de audio PCM 24kHz generados por Gemini Live
-  void addPcmAudioChunk(List<int> pcmBytes) {
+  /// Alimenta chunks de audio PCM 24kHz generados por Gemini Live directamente al reproductor
+  /// nativo para que suene de inmediato sin esperar a que el servidor termine la oración
+  Future<void> addPcmAudioChunk(List<int> pcmBytes) async {
+    if (pcmBytes.isEmpty) return;
+
+    // Calcular amplitud RMS en tiempo real para el ecualizador CAVA
+    final level = calculatePcmRms(pcmBytes);
+    _voiceLevelController.add(level);
+
+    if (_useStreamPlayer) {
+      await _ensureStreamPlayer();
+      if (_streamPlayer != null) {
+        try {
+          await _streamPlayer!.feed(Uint8List.fromList(pcmBytes));
+          return;
+        } catch (e) {
+          debugPrint('[comiAPP AudioManager] Error alimentando chunk en streaming: $e');
+        }
+      }
+    }
+
+    // Fallback: acumular para reproducir con WAV
     _incomingPcmBuffer.addAll(pcmBytes);
   }
 
-  /// Reproduce el audio acumulado de la respuesta del Chef y emite la amplitud
-  /// en tiempo real para el visualizador CAVA
+  /// Notifica que la Chef terminó de enviar audio para el turno actual
+  Future<void> signalEndOfChefTurn() async {
+    if (_useStreamPlayer && _streamPlayer != null) {
+      try {
+        await _streamPlayer!.endOfStream();
+      } catch (_) {}
+    } else if (_incomingPcmBuffer.isNotEmpty) {
+      await playAccumulatedAudio();
+    }
+    _voiceLevelController.add(0.0);
+  }
+
+  /// Reproducción fallback para audio acumulado (si AudioStreamPlayer no está activo)
   Future<void> playAccumulatedAudio() async {
     if (_incomingPcmBuffer.isEmpty) return;
 
@@ -140,8 +192,6 @@ class GeminiLiveAudioManager {
 
       await stopPlayback();
 
-      // Simula el análisis de amplitud sincrónico al tiempo de reproducción
-      // 24kHz 16-bit mono = 48,000 bytes/seg = 1,920 bytes cada 40ms
       const chunkIntervalMs = 40;
       const bytesPerInterval = (24000 * 2 * chunkIntervalMs) ~/ 1000;
       int cursor = 0;
@@ -173,7 +223,7 @@ class GeminiLiveAudioManager {
       await _audioPlayer.stop();
       await _audioPlayer.play(BytesSource(wavBytes));
     } catch (e) {
-      debugPrint('[comiAPP AudioManager] Error reproduciendo audio del Chef: $e');
+      debugPrint('[comiAPP AudioManager] Error reproduciendo audio fallback: $e');
       _playbackVisualizerTimer?.cancel();
       _playbackVisualizerTimer = null;
       _voiceLevelController.add(0.0);
@@ -188,6 +238,14 @@ class GeminiLiveAudioManager {
     _playerCompleteSub = null;
     _voiceLevelController.add(0.0);
     _incomingPcmBuffer.clear();
+
+    if (_streamPlayer != null) {
+      try {
+        await _streamPlayer!.stop();
+        await _streamPlayer!.play(); // Listo para recibir audio nuevo de inmediato
+      } catch (_) {}
+    }
+
     try {
       await _audioPlayer.stop();
     } catch (_) {}
@@ -206,7 +264,6 @@ class GeminiLiveAudioManager {
       sumSquares += normalized * normalized;
     }
     final rms = math.sqrt(sumSquares / numSamples);
-    // Umbral de corte de silencio para descartar estática o ruido ambiental bajo
     if (rms < 0.012) return 0.0;
     return ((rms - 0.012) * 5.0).clamp(0.0, 1.0);
   }
@@ -263,6 +320,9 @@ class GeminiLiveAudioManager {
   Future<void> dispose() async {
     await stopMicrophoneStream();
     await stopPlayback();
+    try {
+      await _streamPlayer?.dispose();
+    } catch (_) {}
     await _voiceLevelController.close();
     await _audioRecorder.dispose();
     await _audioPlayer.dispose();

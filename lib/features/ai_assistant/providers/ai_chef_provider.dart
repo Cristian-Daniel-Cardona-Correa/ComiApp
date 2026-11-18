@@ -112,10 +112,10 @@ class AiChefProvider extends ChangeNotifier {
       final oldStatus = _status;
       _status = newStatus;
 
-      // Si el Chef terminó de hablar o la sesión pasa a escuchar, reproducir audio acumulado
+      // Si la Chef terminó de hablar o la sesión pasa a escuchar, finalizar turno de audio
       if (newStatus == AiAssistantStatus.escuchando && oldStatus == AiAssistantStatus.hablando) {
         _isChefTurnActive = false;
-        _audioManager.playAccumulatedAudio();
+        _audioManager.signalEndOfChefTurn();
       } else if (newStatus == AiAssistantStatus.interrumpido) {
         _isChefTurnActive = false;
         _audioManager.stopPlayback();

@@ -7,7 +7,6 @@ import '../../providers/auth_provider.dart';
 import '../../../home/presentation/screens/home_shell_screen.dart';
 import 'privacy_consent_screen.dart';
 import 'register_screen.dart';
-import '../widgets/google_account_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -113,20 +112,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleGoogleLogin() async {
-    final account = await GoogleAccountDialog.show(context);
-    if (account == null) return; // Usuario canceló la selección
-
-    if (!mounted) return;
     final auth = context.read<AuthProvider>();
-    final success = await auth.signInWithGoogle(
-      email: account['email'],
-      name: account['name'],
-    );
+    final success = await auth.signInWithGoogle();
     if (!mounted) return;
     if (success) {
       _onAuthSuccess();
     } else {
-      _showError(auth.errorMessage ?? 'No se pudo iniciar sesión con Google.');
+      if (auth.errorMessage != null &&
+          !auth.errorMessage!.contains('cancelado')) {
+        _showError(auth.errorMessage!);
+      }
     }
   }
 

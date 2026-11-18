@@ -305,42 +305,51 @@ class GeminiLiveClient implements AsistenteIA {
     }
 
     _setStatus(AiAssistantStatus.pensando);
-    // Formato oficial WebSocket Gemini 3.8 Live para texto en tiempo real
+    // Usar clientContent con turnComplete:true para finalizar el turno correctamente
+    // (realtimeInput.text no emite turnComplete automático del servidor)
     final textInput = {
-      'realtimeInput': {
-        'text': text,
+      'clientContent': {
+        'turns': [
+          {
+            'role': 'user',
+            'parts': [
+              {'text': text}
+            ],
+          }
+        ],
+        'turnComplete': true,
       },
     };
 
     _channel!.sink.add(json.encode(textInput));
+    debugPrint('[comiAPP GeminiLiveClient] Texto enviado con turnComplete: "$text"');
   }
 
   @override
-  Future<void> sendToolResponse({
-    required String callId,
-    required String name,
-    required Map<String, dynamic> result,
-  }) async {
+  Future<void> sendToolResponse(
+      String callId, String functionName, String result) async {
     if (_channel == null || _currentStatus == AiAssistantStatus.desconectado) {
       return;
     }
 
-    final toolResponseMessage = {
+    // Formato oficial BidiGenerateContentToolResponse
+    final toolResponse = {
       'toolResponse': {
         'functionResponses': [
           {
             'id': callId,
-            'name': name,
+            'name': functionName,
             'response': {
-              'result': result,
+              'output': result,
             },
-          },
+          }
         ],
       },
     };
 
-    _channel!.sink.add(json.encode(toolResponseMessage));
-    debugPrint('[comiAPP GeminiLiveClient] toolResponse enviado para "$name" ($callId)');
+    _channel!.sink.add(json.encode(toolResponse));
+    debugPrint(
+        '[comiAPP GeminiLiveClient] toolResponse enviado para "$functionName" (id: $callId): "$result"');
   }
 
   @override

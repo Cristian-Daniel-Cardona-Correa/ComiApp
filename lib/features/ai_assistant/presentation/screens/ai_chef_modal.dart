@@ -99,18 +99,22 @@ class AiChefModal extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
-                    color: status == AiAssistantStatus.hablando
-                        ? AppColors.accentOrange
-                        : (status == AiAssistantStatus.pensando
-                            ? AppColors.highlightYellow
-                            : AppColors.mintSoft),
+                    color: status == AiAssistantStatus.error
+                        ? AppColors.errorCoral
+                        : (status == AiAssistantStatus.hablando
+                            ? AppColors.accentOrange
+                            : (status == AiAssistantStatus.pensando
+                                ? AppColors.highlightYellow
+                                : AppColors.mintSoft)),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.outlineDark, width: 1.5),
                   ),
                   child: Text(
                     status.label,
                     style: AppTypography.badge.copyWith(
-                      color: AppColors.textDark,
+                      color: status == AiAssistantStatus.error
+                          ? Colors.white
+                          : AppColors.textDark,
                     ),
                   ),
                 ),

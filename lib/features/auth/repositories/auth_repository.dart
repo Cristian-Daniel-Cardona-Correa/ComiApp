@@ -54,6 +54,33 @@ class LocalAuthRepository implements AuthRepository {
         _currentUser = null;
       }
     }
+
+    // Restaurar desde Firebase Auth si la sesión local está vacía
+    if (_currentUser == null) {
+      try {
+        final fbUser = FirebaseAuth.instance.currentUser;
+        if (fbUser != null) {
+          final email = fbUser.email ?? 'usuario@google.com';
+          final db = await _loadUsersDb();
+          if (db.containsKey(email)) {
+            try {
+              _currentUser = UserProfile.fromMap(
+                  Map<String, dynamic>.from(db[email]!['profile'] as Map));
+            } catch (_) {
+              _currentUser = _buildGoogleUser(
+                  email, fbUser.displayName ?? 'Usuario', fbUser.photoURL);
+            }
+          } else {
+            _currentUser = _buildGoogleUser(
+                email, fbUser.displayName ?? 'Usuario', fbUser.photoURL);
+          }
+          await _saveSession(_currentUser);
+        }
+      } catch (e) {
+        debugPrint('Error restaurando sesión de Firebase: $e');
+      }
+    }
+
     _authController.add(_currentUser);
   }
 
@@ -65,6 +92,7 @@ class LocalAuthRepository implements AuthRepository {
       await prefs.remove(_sessionKey);
     } else {
       await prefs.setString(_sessionKey, user.toJson());
+      await prefs.setBool(_onboardingCompleteKey, true);
     }
     _currentUser = user;
     _authController.add(user);

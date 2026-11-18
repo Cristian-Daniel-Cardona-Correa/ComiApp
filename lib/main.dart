@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'firebase_options.dart';
 import 'core/theme/app_theme.dart';
 import 'core/constants/app_constants.dart';
@@ -19,6 +20,14 @@ import 'features/home/presentation/screens/home_shell_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 1. Cargar variables de entorno desde .env
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint('dotenv.load warning: $e');
+  }
+
+  // 2. Inicializar Firebase
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -27,10 +36,18 @@ void main() async {
     debugPrint('Firebase.initializeApp warning: $e');
   }
 
+  // 3. Restaurar sesión persistente de usuario ANTES de dibujar la interfaz
   final authRepo = LocalAuthRepository();
+  await authRepo.initialize();
+
   final recipeRepo = LocalRecipeRepository();
   final cookingRepo = CookingRepository();
   final notificationService = LocalCookingNotificationService();
+
+  // 4. Parámetros de Gemini Live desde .env
+  final geminiApiKey = dotenv.maybeGet('GEMINI_API_KEY') ?? '';
+  final geminiModel = dotenv.maybeGet('GEMINI_MODEL') ??
+      AppConstants.defaultGeminiLiveModel;
 
   runApp(
     MultiProvider(
@@ -46,7 +63,12 @@ void main() async {
         ChangeNotifierProvider(
           create: (_) => CookingSessionProvider(repository: cookingRepo),
         ),
-        ChangeNotifierProvider(create: (_) => AiChefProvider()),
+        ChangeNotifierProvider(
+          create: (_) => AiChefProvider(
+            apiKey: geminiApiKey,
+            model: geminiModel,
+          ),
+        ),
       ],
       child: const ComiApp(),
     ),

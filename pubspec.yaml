@@ -49,6 +49,7 @@ dependencies:
   cloud_firestore: ^7.2.0
   record: ^7.2.0
   audioplayers: ^6.8.1
+  audio_stream_player: ^1.1.0
 
 dev_dependencies:
   flutter_test:

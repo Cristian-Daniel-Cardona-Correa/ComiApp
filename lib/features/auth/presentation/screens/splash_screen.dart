@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../providers/auth_provider.dart';
 import '../../repositories/auth_repository.dart';
+import '../../../home/presentation/screens/home_shell_screen.dart';
 import 'login_screen.dart';
 import 'onboarding_screen.dart';
 import 'privacy_consent_screen.dart';
@@ -26,9 +27,42 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkNextScreen() async {
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 900));
     if (!mounted) return;
 
+    AuthProvider? auth;
+    try {
+      auth = context.read<AuthProvider>();
+    } catch (_) {}
+
+    if (auth != null) {
+      // Esperar a que la sesión persistente termine de cargarse si aún está en initial/loading
+      while (auth.status == AuthStatus.loading || auth.status == AuthStatus.initial) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        if (!mounted) return;
+      }
+
+      // 1. Si el usuario ya tiene sesión activa guardada, ir directo a la app
+      if (auth.isAuthenticated) {
+        if (!auth.user!.hasAcceptedPrivacyConsent) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => const PrivacyConsentScreen(),
+            ),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) =>
+                  widget.homeTarget ?? const HomeShellScreen(),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    // 2. Si no hay sesión: verificar si completó onboarding
     final isOnboardingDone = await LocalAuthRepository.isOnboardingCompleted();
     if (!mounted) return;
 
@@ -39,40 +73,9 @@ class _SplashScreenState extends State<SplashScreen> {
       return;
     }
 
-    final auth = context.read<AuthProvider>();
-    if (!mounted) return;
-
-    if (!auth.isAuthenticated) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-      return;
-    }
-
-    if (!auth.user!.hasAcceptedPrivacyConsent) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (ctx) => PrivacyConsentScreen(
-            onConsentAccepted: () {
-              Navigator.of(ctx).pushReplacement(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      widget.homeTarget ?? const Scaffold(body: Center(child: Text('Home'))),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (!mounted) return;
+    // 3. Mostrar pantalla de login
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) =>
-            widget.homeTarget ?? const Scaffold(body: Center(child: Text('Home'))),
-      ),
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
     );
   }
 

@@ -236,9 +236,15 @@ class GeminiLiveClient implements AsistenteIA {
     }
 
     final base64Audio = base64Encode(pcm16Bytes);
-    // Formato oficial WebSocket Gemini 3.8 Live para audio
+    // Formato oficial WebSocket Gemini 3.8 Live para streaming y reapertura de turno
     final realtimeInput = {
       'realtimeInput': {
+        'mediaChunks': [
+          {
+            'mimeType': AppConstants.inputAudioMimeType,
+            'data': base64Audio,
+          }
+        ],
         'audio': {
           'mimeType': AppConstants.inputAudioMimeType,
           'data': base64Audio,

@@ -1,151 +1,184 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../models/ai_session_state.dart';
 
 /// Visualizador de espectro de barras estilo CAVA (Console-based Audio Visualizer)
-/// Muestra un analizador de frecuencias dinámico (graves, medios, agudos)
-/// con caída de picos y rebote elástico cuando el asistente está hablando o escuchando.
+/// reactivo al 100% a la voz REAL:
+/// - Se modula exclusivamente con la amplitud RMS de la voz del usuario y de la IA
+/// - En silencio absoluto, las barras permanecen en reposo (sin animaciones por defecto)
+/// - Caída con efecto de gravedad (peak decay) idéntico a los ecualizadores de consola CAVA
 class SoundwaveVisualizer extends StatefulWidget {
   final AiAssistantStatus status;
+  final Stream<double>? voiceLevelStream;
   final int barCount;
 
   const SoundwaveVisualizer({
     super.key,
     required this.status,
-    this.barCount = 18,
+    this.voiceLevelStream,
+    this.barCount = 20,
   });
 
   @override
   State<SoundwaveVisualizer> createState() => _SoundwaveVisualizerState();
 }
 
-class _SoundwaveVisualizerState extends State<SoundwaveVisualizer>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
+class _SoundwaveVisualizerState extends State<SoundwaveVisualizer> {
+  late List<double> _barHeights;
+  StreamSubscription<double>? _levelSub;
+  double _lastLevel = 0.0;
+
+  static const double _restHeight = 0.06;
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
+    _barHeights = List.filled(widget.barCount, _restHeight);
+    _subscribeToStream();
+  }
+
+  @override
+  void didUpdateWidget(covariant SoundwaveVisualizer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.voiceLevelStream != oldWidget.voiceLevelStream) {
+      _subscribeToStream();
+    }
+  }
+
+  void _subscribeToStream() {
+    _levelSub?.cancel();
+    _levelSub = widget.voiceLevelStream?.listen((level) {
+      _processVoiceLevel(level);
+    });
+  }
+
+  void _processVoiceLevel(double rawLevel) {
+    final level = rawLevel.clamp(0.0, 1.0);
+    final wasSilent = _lastLevel <= 0.005;
+    final isSilent = level <= 0.005;
+
+    // Si sigue en silencio y las barras ya están en la base, no redibujar
+    if (wasSilent && isSilent && _barHeights.every((h) => (h - _restHeight).abs() < 0.001)) {
+      return;
+    }
+
+    _lastLevel = level;
+
+    setState(() {
+      for (int i = 0; i < widget.barCount; i++) {
+        if (isSilent) {
+          // Decaimiento rápido hacia el nivel de reposo (gravedad de CAVA)
+          _barHeights[i] = math.max(_restHeight, _barHeights[i] * 0.75);
+        } else {
+          // Curva espectral de voz humana (más energía en medios-bajos)
+          final x = i / (widget.barCount - 1);
+          final bell = math.sin(math.pow(x, 0.75) * math.pi);
+          // Variación armónica por barra para simular bandas de frecuencia
+          final harmonic = math.sin((i * 1.9) + (level * 6.0)).abs() * 0.3;
+          final targetHeight = (_restHeight + (level * (bell * 0.75 + harmonic + 0.15)))
+              .clamp(_restHeight, 1.0);
+
+          if (targetHeight > _barHeights[i]) {
+            // Ataque rápido al hablar
+            _barHeights[i] = targetHeight;
+          } else {
+            // Caída suave con gravedad
+            _barHeights[i] = math.max(_restHeight, _barHeights[i] * 0.7 + targetHeight * 0.3);
+          }
+        }
+      }
+    });
   }
 
   @override
   void dispose() {
-    _animController.dispose();
+    _levelSub?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final status = widget.status;
-    final isActive = status == AiAssistantStatus.hablando ||
-        status == AiAssistantStatus.escuchando;
-    final isSpeaking = status == AiAssistantStatus.hablando;
+    final isChefSpeaking = status == AiAssistantStatus.hablando;
+    final hasVoiceActivity = _lastLevel > 0.005;
 
-    return AnimatedBuilder(
-      animation: _animController,
-      builder: (context, _) {
-        final t = _animController.value * 2 * math.pi;
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF142421), // Fondo oscuro estilo consola CAVA
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outlineDark, width: 2),
+        boxShadow: hasVoiceActivity
+            ? [
+                BoxShadow(
+                  color: (isChefSpeaking
+                          ? AppColors.accentOrange
+                          : AppColors.primaryTeal)
+                      .withValues(alpha: 0.25),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: List.generate(widget.barCount, (i) {
+          final normalizedIndex = i / (widget.barCount - 1);
+          final height = _barHeights[i];
 
-        return Container(
-          height: 64,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: const Color(0xFF142421), // Fondo oscuro estilo terminal CAVA
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.outlineDark, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: (isSpeaking ? AppColors.accentOrange : AppColors.primaryTeal)
-                    .withValues(alpha: 0.25),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(widget.barCount, (i) {
-              // Simulación de espectro frecuencial CAVA
-              // i va de 0 a barCount-1: graves (izq), medios (centro), agudos (der)
-              final normalizedIndex = i / (widget.barCount - 1);
-              final bellCurve = math.sin(normalizedIndex * math.pi); // curva de campana
+          // Determinación del color del espectro
+          Color barColor;
+          if (!hasVoiceActivity) {
+            // Reposo / Silencio: barras tenues inmóviles
+            barColor = const Color(0xFF264640);
+          } else if (isChefSpeaking) {
+            // Chef comiAPP hablando: Degradado cálido fuego (Naranja a Amarillo)
+            barColor = Color.lerp(
+              AppColors.accentOrange,
+              AppColors.highlightYellow,
+              normalizedIndex,
+            )!;
+          } else {
+            // Usuario hablando: Degradado Verde Menta a Turquesa
+            barColor = Color.lerp(
+              AppColors.primaryTeal,
+              AppColors.mintSoft,
+              normalizedIndex,
+            )!;
+          }
 
-              double heightFactor = 0.12; // reposo
-
-              if (isActive) {
-                // Múltiples armónicos superpuestos como un ecualizador CAVA
-                final freq1 = math.sin(t * 3.2 + i * 0.7);
-                final freq2 = math.cos(t * 1.8 - i * 0.4);
-                final freq3 = math.sin(t * 5.0 + i * 1.2);
-                final combined = (freq1 * 0.45 + freq2 * 0.35 + freq3 * 0.2).abs();
-
-                // Mayor energía si está hablando el Chef
-                final multiplier = isSpeaking ? 1.0 : 0.45;
-                heightFactor = (0.15 + (combined * bellCurve * 0.85 * multiplier))
-                    .clamp(0.08, 1.0);
-              } else if (status == AiAssistantStatus.pensando) {
-                // Onda viajera suave cuando está procesando
-                final wave = (math.sin(t * 2.0 - i * 0.5) + 1) / 2;
-                heightFactor = (0.15 + wave * 0.35).clamp(0.1, 0.7);
-              }
-
-              // Color gradual según la frecuencia (estilo degradado CAVA)
-              Color barColor;
-              if (isSpeaking) {
-                // De naranja a amarillo fuego
-                barColor = Color.lerp(
-                  AppColors.accentOrange,
-                  AppColors.highlightYellow,
-                  normalizedIndex,
-                )!;
-              } else if (status == AiAssistantStatus.pensando) {
-                barColor = AppColors.highlightYellow;
-              } else if (status == AiAssistantStatus.interrumpido) {
-                barColor = AppColors.errorCoral;
-              } else {
-                // Escuchando / reposo: de Verde Menta a Teal profundo
-                barColor = Color.lerp(
-                  AppColors.primaryTeal,
-                  AppColors.mintSoft,
-                  normalizedIndex,
-                )!;
-              }
-
-              return Expanded(
+          return Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 1.5),
+              alignment: Alignment.bottomCenter,
+              child: FractionallySizedBox(
+                heightFactor: height,
                 child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 1.5),
-                  alignment: Alignment.bottomCenter,
-                  child: FractionallySizedBox(
-                    heightFactor: heightFactor,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: barColor,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(3),
-                        ),
-                        boxShadow: isSpeaking
-                            ? [
-                                BoxShadow(
-                                  color: barColor.withValues(alpha: 0.6),
-                                  blurRadius: 3,
-                                ),
-                              ]
-                            : null,
-                      ),
+                  decoration: BoxDecoration(
+                    color: barColor,
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(2.5),
                     ),
+                    boxShadow: hasVoiceActivity && height > 0.2
+                        ? [
+                            BoxShadow(
+                              color: barColor.withValues(alpha: 0.5),
+                              blurRadius: 2.5,
+                            ),
+                          ]
+                        : null,
                   ),
                 ),
-              );
-            }),
-          ),
-        );
-      },
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 }

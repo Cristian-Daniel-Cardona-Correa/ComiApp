@@ -157,7 +157,7 @@ class AiChefModal extends StatelessWidget {
                 onFrameCaptured: (bytes) => aiProv.sendCameraFrame(bytes),
               ),
 
-            // Visualizador de ondas sonoras
+            // Visualizador de ondas sonoras estilo CAVA reactivo a la voz
             Container(
               padding: const EdgeInsets.symmetric(vertical: 18),
               decoration: BoxDecoration(
@@ -165,7 +165,10 @@ class AiChefModal extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColors.outlineDark, width: 2),
               ),
-              child: SoundwaveVisualizer(status: status),
+              child: SoundwaveVisualizer(
+                status: status,
+                voiceLevelStream: aiProv.voiceLevelStream,
+              ),
             ),
             const SizedBox(height: 14),
 

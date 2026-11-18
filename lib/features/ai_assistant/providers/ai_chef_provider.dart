@@ -89,6 +89,7 @@ class AiChefProvider extends ChangeNotifier {
   bool get isMicMuted => _isMicMuted;
   bool get isRecordingSpeech => !_isMicMuted;
   bool get isCameraActive => _isCameraActive;
+  Stream<double> get voiceLevelStream => _audioManager.voiceLevelStream;
   String get latestTranscript => _latestTranscript;
   List<AiMessage> get messages => _messages;
   String? get lastToolActionResult => _lastToolActionResult;
@@ -258,18 +259,9 @@ class AiChefProvider extends ChangeNotifier {
 
     // Por defecto el usuario siempre inicia silenciado
     _isMicMuted = true;
-    _audioManager.setMicMuted(true);
 
     // Conectar WebSocket con Gemini Live
     await _assistant.connect(context);
-
-    // Iniciar stream del micrófono en segundo plano (silenciado por defecto)
-    await _audioManager.startMicrophoneStream(
-      onPcmChunk: (pcmChunk) {
-        _assistant.sendUserSpeechChunk(pcmChunk);
-      },
-    );
-    _audioManager.setMicMuted(true);
   }
 
   void _startSessionTimer() {
@@ -295,13 +287,18 @@ class AiChefProvider extends ChangeNotifier {
     });
   }
 
-  /// Inicia la captura de voz del usuario (desmutea y detiene reproducción previa)
+  /// Inicia la captura de voz del usuario (detiene audio previo y abre micrófono de forma segura)
   Future<void> startSpeaking() async {
-    _audioManager.stopPlayback();
+    await _audioManager.stopPlayback();
     _isMicMuted = false;
-    _audioManager.setMicMuted(false);
     _status = AiAssistantStatus.escuchando;
     notifyListeners();
+
+    await _audioManager.ensureMicrophoneStreaming(
+      onPcmChunk: (pcmChunk) {
+        _assistant.sendUserSpeechChunk(pcmChunk);
+      },
+    );
   }
 
   /// Finaliza la captura de voz y envía `audioStreamEnd: true` a Gemini Live
@@ -309,7 +306,7 @@ class AiChefProvider extends ChangeNotifier {
   Future<void> stopSpeakingAndSend() async {
     if (_isMicMuted) return;
     _isMicMuted = true;
-    _audioManager.setMicMuted(true);
+    await _audioManager.stopMicrophoneStream();
     await _assistant.sendAudioStreamEnd();
     _status = AiAssistantStatus.pensando;
     notifyListeners();
@@ -367,7 +364,7 @@ class AiChefProvider extends ChangeNotifier {
     await _audioManager.stopPlayback();
     await _assistant.disconnect();
     _isCameraActive = false;
-    _isMicMuted = false;
+    _isMicMuted = true;
     _isChefTurnActive = false;
     _isUserVoiceTurnActive = false;
     notifyListeners();

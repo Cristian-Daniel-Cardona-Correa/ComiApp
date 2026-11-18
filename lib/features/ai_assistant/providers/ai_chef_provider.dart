@@ -109,15 +109,18 @@ class AiChefProvider extends ChangeNotifier {
 
   void _subscribe() {
     _statusSub = _assistant.statusStream.listen((newStatus) {
-      final oldStatus = _status;
       _status = newStatus;
 
-      // Si la Chef terminó de hablar o la sesión pasa a escuchar, finalizar turno de audio
-      if (newStatus == AiAssistantStatus.escuchando && oldStatus == AiAssistantStatus.hablando) {
+      // Si la Chef empieza a hablar, pausar la retransmisión de eco de micrófono
+      if (newStatus == AiAssistantStatus.hablando) {
+        _audioManager.setChefSpeaking(true);
+      } else if (newStatus == AiAssistantStatus.escuchando) {
         _isChefTurnActive = false;
+        _audioManager.setChefSpeaking(false);
         _audioManager.signalEndOfChefTurn();
       } else if (newStatus == AiAssistantStatus.interrumpido) {
         _isChefTurnActive = false;
+        _audioManager.setChefSpeaking(false);
         _audioManager.stopPlayback();
       }
 
@@ -210,16 +213,19 @@ class AiChefProvider extends ChangeNotifier {
 
   void _handleToolCall(AiToolCall toolCall) {
     debugPrint('[comiAPP AiChefProvider] Ejecutando acción por voz: ${toolCall.name}');
+    final Map<String, dynamic> result = {'success': true};
 
     switch (toolCall.name) {
       case 'siguiente_paso':
         onNextStepRequested?.call();
         _lastToolActionResult = 'Avanzando al siguiente paso';
+        result['accion'] = 'siguiente_paso';
         break;
 
       case 'paso_anterior':
         onPreviousStepRequested?.call();
         _lastToolActionResult = 'Volviendo al paso anterior';
+        result['accion'] = 'paso_anterior';
         break;
 
       case 'iniciar_temporizador':
@@ -227,18 +233,30 @@ class AiChefProvider extends ChangeNotifier {
         final mins = toolCall.arguments['minutos'] as int? ?? 5;
         onStartTimerRequested?.call(name, mins);
         _lastToolActionResult = 'Temporizador "$name" ($mins min) iniciado';
+        result['accion'] = 'iniciar_temporizador';
+        result['nombre'] = name;
+        result['minutos'] = mins;
         break;
 
       case 'cancelar_temporizador':
         final name = toolCall.arguments['nombre'] as String? ?? '';
         onCancelTimerRequested?.call(name);
         _lastToolActionResult = 'Temporizador "$name" cancelado';
+        result['accion'] = 'cancelar_temporizador';
         break;
 
       case 'leer_ingredientes_del_paso':
         _lastToolActionResult = 'Ingredientes del paso leídos';
+        result['accion'] = 'leer_ingredientes';
         break;
     }
+
+    // Responder a Gemini Live para que confirme verbalmente la acción realizada
+    _assistant.sendToolResponse(
+      callId: toolCall.callId,
+      name: toolCall.name,
+      result: result,
+    );
 
     notifyListeners();
   }
@@ -326,9 +344,23 @@ class AiChefProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void sendCameraFrame(List<int> jpegBytes) {
+  Future<void> sendCameraFrame(List<int> jpegBytes) async {
     if (_isCameraActive && jpegBytes.isNotEmpty) {
-      _assistant.sendCameraFrame(jpegBytes);
+      _messages.add(
+        AiMessage(
+          id: _uuid.v4(),
+          sender: 'usuario',
+          text: '📸 [Foto de ingredientes/cocción enviada]',
+          timestamp: DateTime.now(),
+        ),
+      );
+      notifyListeners();
+
+      await _assistant.sendCameraFrame(jpegBytes);
+      // Pide a la Chef que analice la imagen enviada y responda por voz
+      await _assistant.sendTextMessage(
+        'Mira la foto que te acabo de mostrar. Analízala y dime por voz cómo va la preparación y tus sugerencias.',
+      );
     }
   }
 

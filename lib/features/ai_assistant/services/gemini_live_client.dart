@@ -316,6 +316,34 @@ class GeminiLiveClient implements AsistenteIA {
   }
 
   @override
+  Future<void> sendToolResponse({
+    required String callId,
+    required String name,
+    required Map<String, dynamic> result,
+  }) async {
+    if (_channel == null || _currentStatus == AiAssistantStatus.desconectado) {
+      return;
+    }
+
+    final toolResponseMessage = {
+      'toolResponse': {
+        'functionResponses': [
+          {
+            'id': callId,
+            'name': name,
+            'response': {
+              'result': result,
+            },
+          },
+        ],
+      },
+    };
+
+    _channel!.sink.add(json.encode(toolResponseMessage));
+    debugPrint('[comiAPP GeminiLiveClient] toolResponse enviado para "$name" ($callId)');
+  }
+
+  @override
   Future<void> interrupt() async {
     _setStatus(AiAssistantStatus.interrumpido);
     _setStatus(AiAssistantStatus.escuchando);

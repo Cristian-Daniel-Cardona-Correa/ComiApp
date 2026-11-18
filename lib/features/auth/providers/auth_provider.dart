@@ -54,13 +54,8 @@ class AuthProvider extends ChangeNotifier {
         () => _repository.registerWithEmailPassword(name, email, password));
   }
 
-  Future<bool> signInWithGoogle(
-      {String? email, String? name, String? photoUrl}) async {
-    return _handleAuth(() => _repository.signInWithGoogle(
-          email: email,
-          name: name,
-          photoUrl: photoUrl,
-        ));
+  Future<bool> signInWithGoogle() async {
+    return _handleAuth(() => _repository.signInWithGoogle());
   }
 
   Future<bool> signInAsGuest() async {

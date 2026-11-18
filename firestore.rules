@@ -1,40 +1,223 @@
 rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {uid} — matches the authenticated user's Firebase Auth UID
+// Fields:
+//   - name                     : string    (required, 1–100 chars)
+//   - email                    : string    (required, valid email ≤ 254 chars, immutable after create)
+//   - photoUrl                 : string | null (optional; if present must be https:// URL ≤ 2048 chars)
+//   - preferences              : map       (required, ≤ 20 top-level keys)
+//   - favoriteRecipeIds        : list      (required, ≤ 500 elements, each element is a string)
+//   - hasAcceptedPrivacyConsent: bool      (required)
+//   - createdAt                : timestamp (required, immutable after create, must be recent on create)
+//
+// Access rules:
+//   - read   : owner only (non-anonymous authenticated user)
+//   - create : owner only (non-anonymous authenticated user, all required fields, recent createdAt)
+//   - update : owner only (non-anonymous authenticated user; email & createdAt are immutable)
+//   - delete : owner only (non-anonymous authenticated user)
+//
+// All other collections / paths: DENY ALL (default deny at root wildcard).
+//
+// Authentication providers:
+//   - email/password → allowed
+//   - Google Sign-In → allowed
+//   - anonymous      → BLOCKED from all users/* access
+//
+// NOTE: The previous rules file also contained rules for collections
+//   `recipes` and `users/{uid}/sessions` that are NOT covered by this
+//   file per the specification. If those collections are still in use,
+//   re-add their rules explicitly.
+//
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Funciones de validación
+    // ============================================================
+    // Default deny — every path not explicitly matched below is
+    // inaccessible to all clients. This is the security foundation.
+    // ============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ============================================================
+    // Helper Functions
+    // ============================================================
+
+    // Returns true if the request is from any authenticated user
+    // (including anonymous — callers must add the non-anonymous check
+    // separately via isOwner()).
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    // Returns true when the caller is authenticated, owns the document
+    // by UID, and is NOT an anonymous user.
+    // This is the single gate used for all users/{uid} operations.
+    function isOwner(uid) {
+      return isAuthenticated()
+          && request.auth.uid == uid
+          && request.auth.token.firebase.sign_in_provider != 'anonymous';
     }
 
-    // Regla de privacidad estricta (Ley 1581 Habeas Data):
-    // Se prohíbe explícitamente guardar datos biométricos, audio o video
-    function doesNotContainMediaBytes(data) {
-      return !('audioBytes' in data) &&
-             !('videoBytes' in data) &&
-             !('cameraStream' in data);
+    // Validates that a string value is within the given length bounds.
+    function validString(value, minLen, maxLen) {
+      return value is string
+          && value.size() >= minLen
+          && value.size() <= maxLen;
     }
 
-    // Catálogo de recetas: lectura pública, escritura solo administradores
+    // Validates email format (conservative RFC-compliant pattern).
+    function isValidEmail(email) {
+      return email is string
+          && email.matches('^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$')
+          && email.size() <= 254;
+    }
+
+    // Validates that photoUrl is either absent, explicitly null,
+    // or a non-empty https:// URL ≤ 2048 chars.
+    // Returns true if the field is not present OR is null OR is a valid URL.
+    function isValidPhotoUrl(data) {
+      return !('photoUrl' in data)
+          || data.photoUrl == null
+          || (data.photoUrl is string
+              && data.photoUrl.size() >= 10
+              && data.photoUrl.size() <= 2048
+              && data.photoUrl.matches('^https://.*'));
+    }
+
+    // Validates the favoriteRecipeIds list:
+    //   - must be a list
+    //   - at most 500 elements (DoS / resource exhaustion guard)
+    // Note: CEL does not support per-element iteration, so element-level
+    // string length is enforced application-side.
+    function isValidFavoriteRecipeIds(ids) {
+      return ids is list && ids.size() <= 500;
+    }
+
+    // Validates the preferences map:
+    //   - must be a map
+    //   - at most 20 top-level keys (guards against schema-stuffing / DoS)
+    function isValidPreferences(prefs) {
+      return prefs is map && prefs.size() <= 20;
+    }
+
+    // Strict schema enforcement — only the declared fields are permitted.
+    // Prevents schema pollution (e.g., injecting isAdmin, role, extraData).
+    function hasOnlyAllowedUserFields(data) {
+      return data.keys().hasOnly([
+        'name',
+        'email',
+        'photoUrl',
+        'preferences',
+        'favoriteRecipeIds',
+        'hasAcceptedPrivacyConsent',
+        'createdAt'
+      ]);
+    }
+
+    // Ensures all required fields are present in the incoming document.
+    function hasRequiredUserFields(data) {
+      return data.keys().hasAll([
+        'name',
+        'email',
+        'preferences',
+        'favoriteRecipeIds',
+        'hasAcceptedPrivacyConsent',
+        'createdAt'
+      ]);
+    }
+
+    // Returns true when the given timestamp falls within the last 5 minutes
+    // relative to server time. Used on create to prevent forged createdAt values.
+    function isRecent(ts) {
+      return ts is timestamp
+          && ts > request.time - duration.value(5, 'm')
+          && ts <= request.time;
+    }
+
+    // ============================================================
+    // Domain Validator — isValidUserDocument()
+    //
+    // CRITICAL: This function MUST be called in BOTH the create rule
+    // AND the update rule to prevent the "Update Bypass" vulnerability
+    // (where a valid create is followed by an unchecked update that
+    // injects a 1 MB string or removes required fields).
+    // ============================================================
+    function isValidUserDocument(data) {
+      return hasOnlyAllowedUserFields(data)
+          && hasRequiredUserFields(data)
+          // name: non-empty string, max 100 chars
+          && validString(data.name, 1, 100)
+          // email: valid format, ≤ 254 chars (RFC 5321 maximum)
+          && isValidEmail(data.email)
+          // photoUrl: null or valid https:// URL ≤ 2048 chars
+          && isValidPhotoUrl(data)
+          // preferences: map with ≤ 20 keys
+          && isValidPreferences(data.preferences)
+          // favoriteRecipeIds: list with ≤ 500 elements
+          && isValidFavoriteRecipeIds(data.favoriteRecipeIds)
+          // hasAcceptedPrivacyConsent: strictly boolean
+          && data.hasAcceptedPrivacyConsent is bool
+          // createdAt: must be a Firestore timestamp type
+          && data.createdAt is timestamp;
+    }
+
+    // ============================================================
+    // users/{uid}
+    //
+    // PII WARNING: This document contains email and other private data.
+    // Owner-only access is enforced; NO blanket-authenticated read.
+    // ============================================================
+    match /users/{uid} {
+
+      // READ — owner only (non-anonymous)
+      // A second authenticated user cannot read another user's profile
+      // (enforced by the uid == request.auth.uid check inside isOwner).
+      allow read: if isOwner(uid);
+
+      // CREATE — owner only (non-anonymous)
+      //   • Full schema validation via isValidUserDocument().
+      //   • createdAt must be recent (prevents forging past/future timestamps).
+      //   • If the Firebase Auth token carries an email (email/password &
+      //     Google Sign-In both do), the stored email must match it exactly.
+      //     This prevents a user from spoofing another user's email address
+      //     in their profile document.
+      allow create: if isOwner(uid)
+          && isValidUserDocument(request.resource.data)
+          && isRecent(request.resource.data.createdAt)
+          && (request.auth.token.email == null
+              || request.resource.data.email == request.auth.token.email);
+
+      // UPDATE — owner only (non-anonymous)
+      //   • Full schema re-validation on every update (closes Update Bypass).
+      //   • email is immutable: the stored value must remain unchanged.
+      //   • createdAt is immutable: the stored value must remain unchanged.
+      allow update: if isOwner(uid)
+          && isValidUserDocument(request.resource.data)
+          && request.resource.data.email == resource.data.email
+          && request.resource.data.createdAt == resource.data.createdAt;
+
+      // DELETE — owner only (non-anonymous)
+      allow delete: if isOwner(uid);
+    }
+
+    // Catálogo de recetas: lectura pública
     match /recipes/{recipeId} {
       allow read: if true;
-      allow write: if isAuthenticated() && request.auth.token.admin == true;
+      allow write: if false;
     }
 
-    // Perfiles de usuario: cada usuario solo lee y escribe su propio documento
-    match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create, update: if isOwner(userId) && doesNotContainMediaBytes(request.resource.data);
-      allow delete: if isOwner(userId);
+    // ============================================================
+    // All other collections and paths are denied by the root
+    // wildcard `/{document=**}` rule above.
+    // ============================================================
 
-      // Sesiones de progreso de cocina y temporizadores del usuario
-      match /sessions/{sessionId} {
-        allow read, write: if isOwner(userId);
-      }
-    }
   }
 }

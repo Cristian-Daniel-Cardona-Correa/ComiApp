@@ -36,6 +36,7 @@ class LocalAuthRepository implements AuthRepository {
   final _uuid = const Uuid();
   final _authController = StreamController<UserProfile?>.broadcast();
   UserProfile? _currentUser;
+  bool _initialized = false;
 
   @override
   Stream<UserProfile?> get authStateChanges => _authController.stream;
@@ -47,6 +48,11 @@ class LocalAuthRepository implements AuthRepository {
 
   @override
   Future<void> initialize() async {
+    if (_initialized) {
+      _authController.add(_currentUser);
+      return;
+    }
+    _initialized = true;
     final prefs = await SharedPreferences.getInstance();
     final sessionJson = prefs.getString(_sessionKey);
     if (sessionJson != null) {
@@ -360,6 +366,16 @@ class LocalAuthRepository implements AuthRepository {
 
   @override
   Future<void> acceptPrivacyConsent() async {
+    // Si no hay usuario en memoria, intentar recargar desde SharedPreferences
+    if (_currentUser == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final sessionJson = prefs.getString(_sessionKey);
+      if (sessionJson != null) {
+        try {
+          _currentUser = UserProfile.fromJson(sessionJson);
+        } catch (_) {}
+      }
+    }
     if (_currentUser == null) return;
     final updated = _currentUser!.copyWith(hasAcceptedPrivacyConsent: true);
     await _saveSession(updated);

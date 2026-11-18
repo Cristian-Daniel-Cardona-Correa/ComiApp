@@ -21,7 +21,15 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
   bool _loading = false;
 
   Future<void> _handleAccept() async {
-    if (!_acceptedTerms) return;
+    if (!_acceptedTerms) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Marca la casilla para aceptar los términos y continuar.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
     setState(() => _loading = true);
     try {
       final auth = context.read<AuthProvider>();
@@ -166,7 +174,7 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
-                  onPressed: (_acceptedTerms && !_loading) ? _handleAccept : null,
+                  onPressed: !_loading ? _handleAccept : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accentOrange,
                     disabledBackgroundColor: AppColors.outlineDark.withValues(alpha: 0.2),
@@ -180,9 +188,9 @@ class _PrivacyConsentScreenState extends State<PrivacyConsentScreen> {
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
-                      : Text(
-                          _acceptedTerms ? 'Aceptar y Continuar' : 'Acepta los términos para continuar',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
+                      : const Text(
+                          'Aceptar y Continuar',
+                          style: TextStyle(fontWeight: FontWeight.w700),
                         ),
                 ),
               ),

@@ -18,6 +18,8 @@ class GeminiLiveClient implements AsistenteIA {
 
   final _statusController = StreamController<AiAssistantStatus>.broadcast();
   final _transcriptController = StreamController<String>.broadcast();
+  final _userTranscriptController = StreamController<String>.broadcast();
+  final _audioOutputController = StreamController<List<int>>.broadcast();
   final _toolCallController = StreamController<AiToolCall>.broadcast();
 
   AiAssistantStatus _currentStatus = AiAssistantStatus.desconectado;
@@ -32,6 +34,12 @@ class GeminiLiveClient implements AsistenteIA {
 
   @override
   Stream<String> get transcriptStream => _transcriptController.stream;
+
+  @override
+  Stream<String> get userTranscriptStream => _userTranscriptController.stream;
+
+  @override
+  Stream<List<int>> get audioOutputStream => _audioOutputController.stream;
 
   @override
   Stream<AiToolCall> get toolCallStream => _toolCallController.stream;
@@ -68,8 +76,8 @@ class GeminiLiveClient implements AsistenteIA {
       final tools = AiContextBuilder.getToolDeclarations();
 
       // Setup handshake oficial según especificación Gemini 3.8 Live:
-      // - Modalidad de respuesta: exclusivamente AUDIO (especificación 3.8)
-      // - outputAudioTranscription: {} para obtener subtítulos/transcripción de voz del modelo
+      // - Modalidad de respuesta: exclusivamente AUDIO
+      // - outputAudioTranscription: {} para obtener subtítulos de voz del modelo
       // - inputAudioTranscription: {} para transcripción de lo que habla el usuario
       final setupMessage = {
         'setup': {
@@ -128,9 +136,10 @@ class GeminiLiveClient implements AsistenteIA {
             return;
           }
 
-          // 2. Manejo de Barge-in (Interrupción de voz del usuario)
+          // 2. Manejo de contenido del servidor
           final serverContent = message['serverContent'] as Map<String, dynamic>?;
           if (serverContent != null) {
+            // Manejo de Barge-in (Interrupción de voz del usuario)
             if (serverContent['interrupted'] == true) {
               debugPrint('[comiAPP GeminiLiveClient] Barge-in detectado (interrupted: true).');
               _setStatus(AiAssistantStatus.interrumpido);
@@ -138,39 +147,46 @@ class GeminiLiveClient implements AsistenteIA {
               return;
             }
 
-            // 3. Transcripción de audio de salida (outputAudioTranscription)
+            // 3. Transcripción de lo que dice el usuario (inputTranscription)
+            final inputTranscription = serverContent['inputTranscription'];
+            if (inputTranscription != null && inputTranscription['text'] != null) {
+              final userText = inputTranscription['text'] as String;
+              if (userText.trim().isNotEmpty) {
+                debugPrint('[comiAPP GeminiLiveClient] Transcripción del usuario: "$userText"');
+                _userTranscriptController.add(userText);
+              }
+            }
+
+            // 4. Transcripción de lo que responde el Chef (outputAudioTranscription)
             final outputTranscription = serverContent['outputTranscription'];
             if (outputTranscription != null && outputTranscription['text'] != null) {
               final text = outputTranscription['text'] as String;
-              if (text.trim().isNotEmpty) {
+              if (text.isNotEmpty) {
                 _setStatus(AiAssistantStatus.hablando);
                 _transcriptController.add(text);
               }
             }
 
-            // Transcripción de audio de entrada del usuario (opcional para feedback visual)
-            final inputTranscription = serverContent['inputTranscription'];
-            if (inputTranscription != null && inputTranscription['text'] != null) {
-              final userText = inputTranscription['text'] as String;
-              debugPrint('[comiAPP GeminiLiveClient] Usuario dijo: "$userText"');
-            }
-
-            // 4. ModelTurn: Audio chunks e información de texto directo
+            // 5. ModelTurn: Chunks de audio PCM y texto alternativo
             final modelTurn = serverContent['modelTurn'] as Map<String, dynamic>?;
             if (modelTurn != null) {
               _setStatus(AiAssistantStatus.hablando);
               final parts = modelTurn['parts'] as List<dynamic>? ?? [];
               for (final part in parts) {
                 if (part is Map<String, dynamic>) {
+                  // Texto directo (si viene incluido)
                   if (part['text'] != null) {
                     final text = part['text'] as String;
-                    if (text.trim().isNotEmpty) {
+                    if (text.isNotEmpty) {
                       _transcriptController.add(text);
                     }
                   }
-                  // Los bytes de audio PCM 24kHz se reciben en part['inlineData']
-                  if (part['inlineData'] != null) {
-                    // Audio PCM disponible para buffer / streaming de altavoz
+                  // Chunks de audio PCM (24kHz, 16-bit, mono)
+                  if (part['inlineData'] != null && part['inlineData']['data'] != null) {
+                    try {
+                      final audioBytes = base64Decode(part['inlineData']['data'] as String);
+                      _audioOutputController.add(audioBytes);
+                    } catch (_) {}
                   }
                 }
               }
@@ -181,7 +197,7 @@ class GeminiLiveClient implements AsistenteIA {
             }
           }
 
-          // 5. Manejo de llamadas a herramientas (Function Calling)
+          // 6. Manejo de llamadas a herramientas (Function Calling)
           final toolCall = message['toolCall'] as Map<String, dynamic>?;
           if (toolCall != null && toolCall['functionCalls'] != null) {
             final calls = toolCall['functionCalls'] as List<dynamic>;
@@ -220,19 +236,13 @@ class GeminiLiveClient implements AsistenteIA {
     }
 
     final base64Audio = base64Encode(pcm16Bytes);
-    // Formato moderno Gemini 3.8 con fallback de compatibilidad
+    // Formato oficial WebSocket Gemini 3.8 Live para audio
     final realtimeInput = {
       'realtimeInput': {
         'audio': {
           'mimeType': AppConstants.inputAudioMimeType,
           'data': base64Audio,
         },
-        'mediaChunks': [
-          {
-            'mimeType': AppConstants.inputAudioMimeType,
-            'data': base64Audio,
-          }
-        ],
       },
     };
 
@@ -245,24 +255,25 @@ class GeminiLiveClient implements AsistenteIA {
       return;
     }
 
+    // Validar tamaño mínimo de un JPEG real
+    if (jpegBytes.length < 100) {
+      debugPrint('[comiAPP GeminiLiveClient] Fotograma ignorado (longitud insuficiente: ${jpegBytes.length} bytes)');
+      return;
+    }
+
     final base64Image = base64Encode(jpegBytes);
-    // Formato moderno Gemini 3.8 para video/imágenes
+    // Formato oficial WebSocket Gemini 3.8 Live para imágenes
     final imageInput = {
       'realtimeInput': {
         'video': {
           'mimeType': 'image/jpeg',
           'data': base64Image,
         },
-        'mediaChunks': [
-          {
-            'mimeType': 'image/jpeg',
-            'data': base64Image,
-          }
-        ],
       },
     };
 
     _channel!.sink.add(json.encode(imageInput));
+    debugPrint('[comiAPP GeminiLiveClient] Fotograma JPEG enviado exitosamente (${jpegBytes.length} bytes)');
   }
 
   @override
@@ -272,21 +283,14 @@ class GeminiLiveClient implements AsistenteIA {
     }
 
     _setStatus(AiAssistantStatus.pensando);
-    final clientContent = {
-      'clientContent': {
-        'turns': [
-          {
-            'role': 'user',
-            'parts': [
-              {'text': text}
-            ],
-          }
-        ],
-        'turnComplete': true,
+    // Formato oficial WebSocket Gemini 3.8 Live para texto en tiempo real
+    final textInput = {
+      'realtimeInput': {
+        'text': text,
       },
     };
 
-    _channel!.sink.add(json.encode(clientContent));
+    _channel!.sink.add(json.encode(textInput));
   }
 
   @override
@@ -308,6 +312,8 @@ class GeminiLiveClient implements AsistenteIA {
     disconnect();
     _statusController.close();
     _transcriptController.close();
+    _userTranscriptController.close();
+    _audioOutputController.close();
     _toolCallController.close();
   }
 }

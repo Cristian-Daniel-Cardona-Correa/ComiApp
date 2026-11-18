@@ -9,6 +9,8 @@ class MockGeminiLiveClient implements AsistenteIA {
   final _uuid = const Uuid();
   final _statusController = StreamController<AiAssistantStatus>.broadcast();
   final _transcriptController = StreamController<String>.broadcast();
+  final _userTranscriptController = StreamController<String>.broadcast();
+  final _audioOutputController = StreamController<List<int>>.broadcast();
   final _toolCallController = StreamController<AiToolCall>.broadcast();
 
   AiAssistantStatus _currentStatus = AiAssistantStatus.desconectado;
@@ -20,6 +22,12 @@ class MockGeminiLiveClient implements AsistenteIA {
 
   @override
   Stream<String> get transcriptStream => _transcriptController.stream;
+
+  @override
+  Stream<String> get userTranscriptStream => _userTranscriptController.stream;
+
+  @override
+  Stream<List<int>> get audioOutputStream => _audioOutputController.stream;
 
   @override
   Stream<AiToolCall> get toolCallStream => _toolCallController.stream;
@@ -169,6 +177,8 @@ class MockGeminiLiveClient implements AsistenteIA {
     disconnect();
     _statusController.close();
     _transcriptController.close();
+    _userTranscriptController.close();
+    _audioOutputController.close();
     _toolCallController.close();
   }
 }

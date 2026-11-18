@@ -7,10 +7,13 @@ import '../services/asistente_ia.dart';
 import '../services/ai_context_builder.dart';
 import '../services/gemini_live_client.dart';
 import '../services/mock_gemini_live_client.dart';
+import '../services/gemini_live_audio_manager.dart';
 
 class AiChefProvider extends ChangeNotifier {
   AsistenteIA _assistant;
   final _uuid = const Uuid();
+  final GeminiLiveAudioManager _audioManager = GeminiLiveAudioManager();
+
   String _currentApiKey = '';
   String _currentModel = AppConstants.defaultGeminiLiveModel;
 
@@ -22,6 +25,10 @@ class AiChefProvider extends ChangeNotifier {
   String? _lastToolActionResult;
   String? _currentRecipeId;
 
+  // Control de agrupación de mensajes en streaming
+  bool _isChefTurnActive = false;
+  bool _isUserVoiceTurnActive = false;
+
   // Temporizador de duración de sesión y avisos de límites
   Timer? _sessionDurationTimer;
   int _sessionSeconds = 0;
@@ -29,6 +36,8 @@ class AiChefProvider extends ChangeNotifier {
 
   StreamSubscription? _statusSub;
   StreamSubscription? _transcriptSub;
+  StreamSubscription? _userTranscriptSub;
+  StreamSubscription? _audioOutputSub;
   StreamSubscription? _toolCallSub;
 
   // Callbacks para ejecutar acciones en la aplicación
@@ -69,6 +78,8 @@ class AiChefProvider extends ChangeNotifier {
 
     _statusSub?.cancel();
     _transcriptSub?.cancel();
+    _userTranscriptSub?.cancel();
+    _audioOutputSub?.cancel();
     _toolCallSub?.cancel();
     _subscribe();
     notifyListeners();
@@ -89,31 +100,110 @@ class AiChefProvider extends ChangeNotifier {
     _messages.clear();
     _latestTranscript = '';
     _lastToolActionResult = null;
+    _isChefTurnActive = false;
+    _isUserVoiceTurnActive = false;
     notifyListeners();
   }
 
   void _subscribe() {
     _statusSub = _assistant.statusStream.listen((newStatus) {
+      final oldStatus = _status;
       _status = newStatus;
+
+      // Si el Chef terminó de hablar o la sesión pasa a escuchar, reproducir audio acumulado
+      if (newStatus == AiAssistantStatus.escuchando && oldStatus == AiAssistantStatus.hablando) {
+        _isChefTurnActive = false;
+        _audioManager.playAccumulatedAudio();
+      } else if (newStatus == AiAssistantStatus.interrumpido) {
+        _isChefTurnActive = false;
+        _audioManager.stopPlayback();
+      }
+
       notifyListeners();
     });
 
-    _transcriptSub = _assistant.transcriptStream.listen((transcript) {
-      _latestTranscript = transcript;
+    // 1. Transcripción de lo que responde el Chef (agrupa chunks continuos en un solo mensaje)
+    _transcriptSub = _assistant.transcriptStream.listen((transcriptChunk) {
+      _handleChefTranscriptChunk(transcriptChunk);
+    });
+
+    // 2. Transcripción de lo que habla el usuario por voz en tiempo real
+    _userTranscriptSub = _assistant.userTranscriptStream.listen((userSpeechText) {
+      _handleUserVoiceTranscript(userSpeechText);
+    });
+
+    // 3. Chunks de audio PCM generados por el modelo (24kHz)
+    _audioOutputSub = _assistant.audioOutputStream.listen((pcmChunk) {
+      _audioManager.addPcmAudioChunk(pcmChunk);
+    });
+
+    // 4. Invocación de herramientas (Function Calling)
+    _toolCallSub = _assistant.toolCallStream.listen((toolCall) {
+      _handleToolCall(toolCall);
+    });
+  }
+
+  /// Agrupa los fragmentos de streaming del Chef en un único mensaje cohesivo
+  void _handleChefTranscriptChunk(String chunk) {
+    if (chunk.isEmpty) return;
+    _isUserVoiceTurnActive = false;
+
+    if (_isChefTurnActive &&
+        _messages.isNotEmpty &&
+        _messages.last.sender == 'chef') {
+      final lastMsg = _messages.last;
+      _messages[_messages.length - 1] = AiMessage(
+        id: lastMsg.id,
+        sender: 'chef',
+        text: lastMsg.text + chunk,
+        timestamp: lastMsg.timestamp,
+      );
+    } else {
+      _isChefTurnActive = true;
       _messages.add(
         AiMessage(
           id: _uuid.v4(),
           sender: 'chef',
-          text: transcript,
+          text: chunk,
           timestamp: DateTime.now(),
         ),
       );
-      notifyListeners();
-    });
+    }
 
-    _toolCallSub = _assistant.toolCallStream.listen((toolCall) {
-      _handleToolCall(toolCall);
-    });
+    _latestTranscript = _messages.last.text;
+    notifyListeners();
+  }
+
+  /// Registra en el chat lo que el usuario está diciendo por voz
+  void _handleUserVoiceTranscript(String userText) {
+    final clean = userText.trim();
+    if (clean.isEmpty) return;
+
+    _isChefTurnActive = false;
+
+    if (_isUserVoiceTurnActive &&
+        _messages.isNotEmpty &&
+        _messages.last.sender == 'usuario') {
+      final lastMsg = _messages.last;
+      _messages[_messages.length - 1] = AiMessage(
+        id: lastMsg.id,
+        sender: 'usuario',
+        text: clean,
+        timestamp: lastMsg.timestamp,
+      );
+    } else {
+      _isUserVoiceTurnActive = true;
+      _messages.add(
+        AiMessage(
+          id: _uuid.v4(),
+          sender: 'usuario',
+          text: clean,
+          timestamp: DateTime.now(),
+        ),
+      );
+    }
+
+    notifyListeners();
   }
 
   void _handleToolCall(AiToolCall toolCall) {
@@ -161,8 +251,21 @@ class AiChefProvider extends ChangeNotifier {
     }
     _sessionSeconds = 0;
     _sessionLimitWarning = null;
+    _isChefTurnActive = false;
+    _isUserVoiceTurnActive = false;
     _startSessionTimer();
+
+    // Conectar WebSocket con Gemini Live
     await _assistant.connect(context);
+
+    // Iniciar captura del micrófono en streaming PCM 16kHz
+    if (!_isMicMuted) {
+      await _audioManager.startMicrophoneStream(
+        onPcmChunk: (pcmChunk) {
+          _assistant.sendUserSpeechChunk(pcmChunk);
+        },
+      );
+    }
   }
 
   void _startSessionTimer() {
@@ -190,30 +293,32 @@ class AiChefProvider extends ChangeNotifier {
 
   void toggleMic() {
     _isMicMuted = !_isMicMuted;
+    _audioManager.setMicMuted(_isMicMuted);
     notifyListeners();
   }
 
   void toggleCamera() {
     _isCameraActive = !_isCameraActive;
-    if (_isCameraActive) {
-      // Simulación de fotograma inicial JPEG de cámara (768x768)
-      _assistant.sendCameraFrame([0xFF, 0xD8, 0xFF, 0xE0]);
-    }
     notifyListeners();
   }
 
   void sendCameraFrame(List<int> jpegBytes) {
-    if (_isCameraActive) {
+    if (_isCameraActive && jpegBytes.isNotEmpty) {
       _assistant.sendCameraFrame(jpegBytes);
     }
   }
 
   void interruptChef() {
+    _audioManager.stopPlayback();
+    _isChefTurnActive = false;
     _assistant.interrupt();
   }
 
   Future<void> sendUserText(String text) async {
     if (text.trim().isEmpty) return;
+
+    _isChefTurnActive = false;
+    _isUserVoiceTurnActive = false;
 
     _messages.add(
       AiMessage(
@@ -231,9 +336,13 @@ class AiChefProvider extends ChangeNotifier {
   Future<void> endSession() async {
     _sessionDurationTimer?.cancel();
     _sessionDurationTimer = null;
+    await _audioManager.stopMicrophoneStream();
+    await _audioManager.stopPlayback();
     await _assistant.disconnect();
     _isCameraActive = false;
     _isMicMuted = false;
+    _isChefTurnActive = false;
+    _isUserVoiceTurnActive = false;
     notifyListeners();
   }
 
@@ -242,7 +351,10 @@ class AiChefProvider extends ChangeNotifier {
     _sessionDurationTimer?.cancel();
     _statusSub?.cancel();
     _transcriptSub?.cancel();
+    _userTranscriptSub?.cancel();
+    _audioOutputSub?.cancel();
     _toolCallSub?.cancel();
+    _audioManager.dispose();
     _assistant.dispose();
     super.dispose();
   }

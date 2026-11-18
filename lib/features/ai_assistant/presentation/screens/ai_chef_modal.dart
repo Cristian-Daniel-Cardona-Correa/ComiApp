@@ -182,11 +182,18 @@ class AiChefModal extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.record_voice_over_outlined,
-                          size: 16, color: AppColors.primaryDarkTeal),
+                      Icon(
+                        aiProv.messages.isNotEmpty && aiProv.messages.last.isUser
+                            ? Icons.mic_rounded
+                            : Icons.record_voice_over_outlined,
+                        size: 16,
+                        color: AppColors.primaryDarkTeal,
+                      ),
                       const SizedBox(width: 6),
                       Text(
-                        'Transcripción en vivo:',
+                        aiProv.messages.isNotEmpty && aiProv.messages.last.isUser
+                            ? 'Tú dijiste:'
+                            : 'El Chef comiAPP:',
                         style: AppTypography.badge
                             .copyWith(color: AppColors.primaryDarkTeal),
                       ),
@@ -194,12 +201,12 @@ class AiChefModal extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    aiProv.latestTranscript.isNotEmpty
-                        ? aiProv.latestTranscript
+                    aiProv.messages.isNotEmpty
+                        ? aiProv.messages.last.text
                         : 'El chef te escucha. Habla con naturalidad o muéstrale tus ingredientes...',
                     style: AppTypography.bodyMedium.copyWith(
                       color: AppColors.textDark,
-                      fontStyle: aiProv.latestTranscript.isEmpty
+                      fontStyle: aiProv.messages.isEmpty
                           ? FontStyle.italic
                           : FontStyle.normal,
                     ),

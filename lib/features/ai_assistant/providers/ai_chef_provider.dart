@@ -13,7 +13,9 @@ class AiChefProvider extends ChangeNotifier {
   AsistenteIA _assistant;
   final _uuid = const Uuid();
   static const String _geminiApiKeyPref = 'comiapp_gemini_api_key';
+  static const String _geminiModelPref = 'comiapp_gemini_model';
   String _currentApiKey = '';
+  String _currentModel = AppConstants.defaultGeminiLiveModel;
 
   AiAssistantStatus _status = AiAssistantStatus.desconectado;
   bool _isMicMuted = false;
@@ -38,11 +40,15 @@ class AiChefProvider extends ChangeNotifier {
   void Function(String label, int minutes)? onStartTimerRequested;
   void Function(String label)? onCancelTimerRequested;
 
-  AiChefProvider({AsistenteIA? customAssistant, String apiKey = ''})
-      : _currentApiKey = apiKey,
+  AiChefProvider({
+    AsistenteIA? customAssistant,
+    String apiKey = '',
+    String model = AppConstants.defaultGeminiLiveModel,
+  })  : _currentApiKey = apiKey,
+        _currentModel = model,
         _assistant = customAssistant ??
             (apiKey.isNotEmpty && apiKey != 'mock_or_demo_key'
-                ? GeminiLiveClient(apiKey: apiKey)
+                ? GeminiLiveClient(apiKey: apiKey, model: model)
                 : MockGeminiLiveClient()) {
     _subscribe();
     _loadSavedApiKey();
@@ -50,25 +56,30 @@ class AiChefProvider extends ChangeNotifier {
 
   bool get isRealGeminiLive => _assistant is GeminiLiveClient;
   String get currentApiKey => _currentApiKey;
+  String get currentModel => _currentModel;
 
   Future<void> _loadSavedApiKey() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedKey = prefs.getString(_geminiApiKeyPref);
+      final savedModel = prefs.getString(_geminiModelPref) ?? _currentModel;
       if (savedKey != null &&
           savedKey.isNotEmpty &&
           savedKey != 'mock_or_demo_key' &&
           _currentApiKey.isEmpty) {
-        await setApiKey(savedKey);
+        await setApiKey(savedKey, model: savedModel);
       }
     } catch (e) {
       debugPrint('Error loading saved Gemini API Key: $e');
     }
   }
 
-  Future<void> setApiKey(String key) async {
+  Future<void> setApiKey(String key, {String? model}) async {
     final cleanKey = key.trim();
     _currentApiKey = cleanKey;
+    if (model != null && model.isNotEmpty) {
+      _currentModel = model;
+    }
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -77,11 +88,12 @@ class AiChefProvider extends ChangeNotifier {
         _assistant = MockGeminiLiveClient();
       } else {
         await prefs.setString(_geminiApiKeyPref, cleanKey);
-        _assistant = GeminiLiveClient(apiKey: cleanKey);
+        await prefs.setString(_geminiModelPref, _currentModel);
+        _assistant = GeminiLiveClient(apiKey: cleanKey, model: _currentModel);
       }
     } catch (_) {
       if (cleanKey.isNotEmpty && cleanKey != 'mock_or_demo_key') {
-        _assistant = GeminiLiveClient(apiKey: cleanKey);
+        _assistant = GeminiLiveClient(apiKey: cleanKey, model: _currentModel);
       } else {
         _assistant = MockGeminiLiveClient();
       }

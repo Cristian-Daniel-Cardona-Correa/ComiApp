@@ -74,6 +74,14 @@ class MockGeminiLiveClient implements AsistenteIA {
   }
 
   @override
+  Future<void> sendAudioStreamEnd() async {
+    // Al finalizar el turno de voz del usuario en mock, simula respuesta
+    _setStatus(AiAssistantStatus.pensando);
+    await Future.delayed(const Duration(milliseconds: 500));
+    _speak('Te escuché perfectamente. Continúa cocinando y avísame si necesitas ayuda.');
+  }
+
+  @override
   Future<void> sendTextMessage(String text) async {
     final lower = text.toLowerCase().trim();
     _setStatus(AiAssistantStatus.pensando);

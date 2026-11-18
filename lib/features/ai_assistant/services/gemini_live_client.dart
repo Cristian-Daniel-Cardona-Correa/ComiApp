@@ -250,6 +250,22 @@ class GeminiLiveClient implements AsistenteIA {
   }
 
   @override
+  Future<void> sendAudioStreamEnd() async {
+    if (_channel == null || _currentStatus == AiAssistantStatus.desconectado) {
+      return;
+    }
+
+    final endMessage = {
+      'realtimeInput': {
+        'audioStreamEnd': true,
+      },
+    };
+
+    _channel!.sink.add(json.encode(endMessage));
+    debugPrint('[comiAPP GeminiLiveClient] audioStreamEnd enviado (finalización inmediata de turno).');
+  }
+
+  @override
   Future<void> sendCameraFrame(List<int> jpegBytes) async {
     if (_channel == null || _currentStatus == AiAssistantStatus.desconectado) {
       return;

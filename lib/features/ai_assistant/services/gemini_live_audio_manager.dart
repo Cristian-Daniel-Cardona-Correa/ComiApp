@@ -47,6 +47,29 @@ class GeminiLiveAudioManager {
         debugPrint('[comiAPP AudioManager] AudioStreamPlayer no disponible, usando fallback WAV: $e');
         _useStreamPlayer = false;
       }
+    } else {
+      // El player existe pero puede haber quedado en estado STOPPED tras un turno anterior.
+      // Llamar play() es idempotente si ya está playing, y lo reanuda si estaba parado.
+      try {
+        await _streamPlayer!.play();
+      } catch (_) {
+        // Si falla (player en estado irrecuperable), descartarlo y crear uno nuevo
+        debugPrint('[comiAPP AudioManager] AudioStreamPlayer irrecuperable, recreando...');
+        try { await _streamPlayer!.dispose(); } catch (_) {}
+        _streamPlayer = null;
+        try {
+          _streamPlayer = await AudioStreamPlayer.create(
+            sampleRate: 24000,
+            channels: 1,
+            format: PcmFormat.s16le,
+          );
+          await _streamPlayer!.play();
+          debugPrint('[comiAPP AudioManager] AudioStreamPlayer recreado exitosamente.');
+        } catch (e) {
+          debugPrint('[comiAPP AudioManager] No se pudo recrear AudioStreamPlayer: $e');
+          _useStreamPlayer = false;
+        }
+      }
     }
   }
 
@@ -163,16 +186,22 @@ class GeminiLiveAudioManager {
     _incomingPcmBuffer.addAll(pcmBytes);
   }
 
-  /// Notifica que la Chef terminó de enviar audio para el turno actual
+  /// Notifica que la Chef terminó de enviar audio para el turno actual.
+  /// NO llama endOfStream() porque eso termina permanentemente el AudioTrack nativo
+  /// y los turnos siguientes no pueden reproducir audio. En cambio, hace stop()+play()
+  /// para dejar el reproductor listo para el próximo turno.
   Future<void> signalEndOfChefTurn() async {
+    _voiceLevelController.add(0.0);
     if (_useStreamPlayer && _streamPlayer != null) {
       try {
-        await _streamPlayer!.endOfStream();
+        // Resetear el AudioTrack a estado listo sin destruirlo
+        await _streamPlayer!.stop();
+        await _streamPlayer!.play();
+        debugPrint('[comiAPP AudioManager] Fin de turno de la Chef — AudioStreamPlayer reseteado para siguiente turno.');
       } catch (_) {}
     } else if (_incomingPcmBuffer.isNotEmpty) {
       await playAccumulatedAudio();
     }
-    _voiceLevelController.add(0.0);
   }
 
   /// Reproducción fallback para audio acumulado (si AudioStreamPlayer no está activo)

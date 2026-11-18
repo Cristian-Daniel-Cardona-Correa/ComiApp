@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/ai_session_state.dart';
 import 'asistente_ia.dart';
@@ -79,6 +80,15 @@ class MockGeminiLiveClient implements AsistenteIA {
     _setStatus(AiAssistantStatus.pensando);
     await Future.delayed(const Duration(milliseconds: 500));
     _speak('Te escuché perfectamente. Continúa cocinando y avísame si necesitas ayuda.');
+  }
+
+  @override
+  Future<void> sendToolResponse({
+    required String callId,
+    required String name,
+    required Map<String, dynamic> result,
+  }) async {
+    debugPrint('[MockGeminiLiveClient] toolResponse recibido para $name: $result');
   }
 
   @override

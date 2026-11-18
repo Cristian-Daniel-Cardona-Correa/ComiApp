@@ -109,18 +109,15 @@ class AiChefProvider extends ChangeNotifier {
 
   void _subscribe() {
     _statusSub = _assistant.statusStream.listen((newStatus) {
+      final oldStatus = _status;
       _status = newStatus;
 
-      // Si la Chef empieza a hablar, pausar la retransmisión de eco de micrófono
-      if (newStatus == AiAssistantStatus.hablando) {
-        _audioManager.setChefSpeaking(true);
-      } else if (newStatus == AiAssistantStatus.escuchando) {
+      // Si la Chef terminó de hablar o la sesión pasa a escuchar, finalizar turno de audio
+      if (newStatus == AiAssistantStatus.escuchando && oldStatus == AiAssistantStatus.hablando) {
         _isChefTurnActive = false;
-        _audioManager.setChefSpeaking(false);
         _audioManager.signalEndOfChefTurn();
       } else if (newStatus == AiAssistantStatus.interrumpido) {
         _isChefTurnActive = false;
-        _audioManager.setChefSpeaking(false);
         _audioManager.stopPlayback();
       }
 
@@ -144,7 +141,7 @@ class AiChefProvider extends ChangeNotifier {
 
     // 4. Invocación de herramientas (Function Calling)
     _toolCallSub = _assistant.toolCallStream.listen((toolCall) {
-      _handleToolCall(toolCall);
+      _handleToolCall(toolCall); // fire-and-forget async
     });
   }
 
@@ -211,54 +208,47 @@ class AiChefProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _handleToolCall(AiToolCall toolCall) {
+  Future<void> _handleToolCall(AiToolCall toolCall) async {
     debugPrint('[comiAPP AiChefProvider] Ejecutando acción por voz: ${toolCall.name}');
-    final Map<String, dynamic> result = {'success': true};
+    String resultText = '';
 
     switch (toolCall.name) {
       case 'siguiente_paso':
         onNextStepRequested?.call();
-        _lastToolActionResult = 'Avanzando al siguiente paso';
-        result['accion'] = 'siguiente_paso';
+        resultText = 'Avanzando al siguiente paso';
         break;
 
       case 'paso_anterior':
         onPreviousStepRequested?.call();
-        _lastToolActionResult = 'Volviendo al paso anterior';
-        result['accion'] = 'paso_anterior';
+        resultText = 'Volviendo al paso anterior';
         break;
 
       case 'iniciar_temporizador':
         final name = toolCall.arguments['nombre'] as String? ?? 'Cocción';
         final mins = toolCall.arguments['minutos'] as int? ?? 5;
         onStartTimerRequested?.call(name, mins);
-        _lastToolActionResult = 'Temporizador "$name" ($mins min) iniciado';
-        result['accion'] = 'iniciar_temporizador';
-        result['nombre'] = name;
-        result['minutos'] = mins;
+        resultText = 'Temporizador "$name" de $mins minutos iniciado correctamente';
         break;
 
       case 'cancelar_temporizador':
         final name = toolCall.arguments['nombre'] as String? ?? '';
         onCancelTimerRequested?.call(name);
-        _lastToolActionResult = 'Temporizador "$name" cancelado';
-        result['accion'] = 'cancelar_temporizador';
+        resultText = 'Temporizador "$name" cancelado';
         break;
 
       case 'leer_ingredientes_del_paso':
-        _lastToolActionResult = 'Ingredientes del paso leídos';
-        result['accion'] = 'leer_ingredientes';
+        resultText = 'Ingredientes del paso disponibles en pantalla';
         break;
+
+      default:
+        resultText = 'Acción ejecutada';
     }
 
-    // Responder a Gemini Live para que confirme verbalmente la acción realizada
-    _assistant.sendToolResponse(
-      callId: toolCall.callId,
-      name: toolCall.name,
-      result: result,
-    );
-
+    _lastToolActionResult = resultText;
     notifyListeners();
+
+    // CRÍTICO: Enviar toolResponse a Gemini Live para desbloquear la generación de audio/texto
+    await _assistant.sendToolResponse(toolCall.callId, toolCall.name, resultText);
   }
 
   Future<void> startSession(AiCookingContext context) async {
@@ -344,23 +334,9 @@ class AiChefProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> sendCameraFrame(List<int> jpegBytes) async {
+  void sendCameraFrame(List<int> jpegBytes) {
     if (_isCameraActive && jpegBytes.isNotEmpty) {
-      _messages.add(
-        AiMessage(
-          id: _uuid.v4(),
-          sender: 'usuario',
-          text: '📸 [Foto de ingredientes/cocción enviada]',
-          timestamp: DateTime.now(),
-        ),
-      );
-      notifyListeners();
-
-      await _assistant.sendCameraFrame(jpegBytes);
-      // Pide a la Chef que analice la imagen enviada y responda por voz
-      await _assistant.sendTextMessage(
-        'Mira la foto que te acabo de mostrar. Analízala y dime por voz cómo va la preparación y tus sugerencias.',
-      );
+      _assistant.sendCameraFrame(jpegBytes);
     }
   }
 

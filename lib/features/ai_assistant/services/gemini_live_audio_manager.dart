@@ -23,7 +23,6 @@ class GeminiLiveAudioManager {
   Timer? _playbackVisualizerTimer;
   final List<int> _incomingPcmBuffer = [];
   bool _isMicActive = false;
-  bool _isChefSpeaking = false;
 
   final StreamController<double> _voiceLevelController =
       StreamController<double>.broadcast();
@@ -32,11 +31,6 @@ class GeminiLiveAudioManager {
   Stream<double> get voiceLevelStream => _voiceLevelController.stream;
 
   bool get isMicActive => _isMicActive;
-  bool get isChefSpeaking => _isChefSpeaking;
-
-  void setChefSpeaking(bool speaking) {
-    _isChefSpeaking = speaking;
-  }
 
   Future<void> _ensureStreamPlayer() async {
     if (!_useStreamPlayer) return;
@@ -95,12 +89,8 @@ class GeminiLiveAudioManager {
         (chunk) {
           if (_isMicActive) {
             final level = calculatePcmRms(chunk);
-            // Si la Chef no está hablando en el parlante, transmitimos la voz del usuario
-            // Esto previene que el micrófono capture el parlante y corte el audio por falso barge-in
-            if (!_isChefSpeaking) {
-              _voiceLevelController.add(level);
-              onPcmChunk(chunk);
-            }
+            _voiceLevelController.add(level);
+            onPcmChunk(chunk);
           }
         },
         onError: (err) {
@@ -242,7 +232,6 @@ class GeminiLiveAudioManager {
 
   /// Detiene cualquier reproducción en curso inmediatamente (Barge-in / interrupción)
   Future<void> stopPlayback() async {
-    _isChefSpeaking = false;
     _playbackVisualizerTimer?.cancel();
     _playbackVisualizerTimer = null;
     _playerCompleteSub?.cancel();

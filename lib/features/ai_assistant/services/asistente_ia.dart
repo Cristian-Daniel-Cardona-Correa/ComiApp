@@ -18,11 +18,7 @@ abstract class AsistenteIA {
   Future<void> sendAudioStreamEnd() => Future.value();
   Future<void> sendCameraFrame(List<int> jpegBytes);
   Future<void> sendTextMessage(String text);
-  Future<void> sendToolResponse({
-    required String callId,
-    required String name,
-    required Map<String, dynamic> result,
-  }) => Future.value();
+  Future<void> sendToolResponse(String callId, String functionName, String result) => Future.value();
   Future<void> interrupt();
   Future<void> disconnect();
   void dispose();

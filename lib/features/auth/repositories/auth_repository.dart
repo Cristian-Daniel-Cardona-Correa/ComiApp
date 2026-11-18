@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/user_profile.dart';
@@ -12,8 +15,7 @@ abstract class AuthRepository {
   Future<UserProfile> signInWithEmailPassword(String email, String password);
   Future<UserProfile> registerWithEmailPassword(
       String name, String email, String password);
-  Future<UserProfile> signInWithGoogle(
-      {String? email, String? name, String? photoUrl});
+  Future<UserProfile> signInWithGoogle();
   Future<UserProfile> signInAsGuest();
   Future<void> updatePreferences(DietaryPreferences prefs);
   Future<void> toggleFavorite(String recipeId);
@@ -52,6 +54,33 @@ class LocalAuthRepository implements AuthRepository {
         _currentUser = null;
       }
     }
+
+    // Restaurar desde Firebase Auth si la sesión local está vacía
+    if (_currentUser == null) {
+      try {
+        final fbUser = FirebaseAuth.instance.currentUser;
+        if (fbUser != null) {
+          final email = fbUser.email ?? 'usuario@google.com';
+          final db = await _loadUsersDb();
+          if (db.containsKey(email)) {
+            try {
+              _currentUser = UserProfile.fromMap(
+                  Map<String, dynamic>.from(db[email]!['profile'] as Map));
+            } catch (_) {
+              _currentUser = _buildGoogleUser(
+                  email, fbUser.displayName ?? 'Usuario', fbUser.photoURL);
+            }
+          } else {
+            _currentUser = _buildGoogleUser(
+                email, fbUser.displayName ?? 'Usuario', fbUser.photoURL);
+          }
+          await _saveSession(_currentUser);
+        }
+      } catch (e) {
+        debugPrint('Error restaurando sesión de Firebase: $e');
+      }
+    }
+
     _authController.add(_currentUser);
   }
 
@@ -63,6 +92,7 @@ class LocalAuthRepository implements AuthRepository {
       await prefs.remove(_sessionKey);
     } else {
       await prefs.setString(_sessionKey, user.toJson());
+      await prefs.setBool(_onboardingCompleteKey, true);
     }
     _currentUser = user;
     _authController.add(user);
@@ -193,45 +223,69 @@ class LocalAuthRepository implements AuthRepository {
     }
   }
 
-  // ─── Google (autenticación y perfil de usuario) ───────────────────────────
+  // ─── Google Sign-In Oficial con Firebase Auth ────────────────────────────
 
   @override
-  Future<UserProfile> signInWithGoogle({
-    String? email,
-    String? name,
-    String? photoUrl,
-  }) async {
-    await Future.delayed(const Duration(milliseconds: 700));
+  Future<UserProfile> signInWithGoogle() async {
+    try {
+      // 1. Iniciar el flujo nativo oficial de selección de cuenta de Google
+      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      if (googleUser == null) {
+        throw 'Inicio de sesión con Google cancelado por el usuario';
+      }
 
-    final targetEmail = email?.trim().toLowerCase() ?? 'chef.demo@google.com';
-    final targetName =
-        (name != null && name.trim().isNotEmpty) ? name.trim() : 'Usuario de Google';
+      // 2. Obtener los detalles de autenticación del request
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
-    final db = await _loadUsersDb();
-    UserProfile user;
-    if (db.containsKey(targetEmail)) {
-      try {
-        user = UserProfile.fromMap(
-            Map<String, dynamic>.from(db[targetEmail]!['profile'] as Map));
-        if (name != null && name.trim().isNotEmpty && user.name != targetName) {
-          user = user.copyWith(name: targetName);
+      // 3. Crear una nueva credencial para Firebase
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // 4. Iniciar sesión en Firebase con la credencial de Google
+      final UserCredential userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+
+      final firebaseUser = userCredential.user;
+      final targetEmail =
+          firebaseUser?.email ?? googleUser.email.toLowerCase();
+      final targetName = firebaseUser?.displayName ??
+          googleUser.displayName ??
+          'Usuario de Google';
+      final photoUrl = firebaseUser?.photoURL ?? googleUser.photoUrl;
+
+      final db = await _loadUsersDb();
+      UserProfile user;
+      if (db.containsKey(targetEmail)) {
+        try {
+          user = UserProfile.fromMap(
+              Map<String, dynamic>.from(db[targetEmail]!['profile'] as Map));
+          user = user.copyWith(
+            name: targetName,
+            photoUrl: photoUrl ?? user.photoUrl,
+          );
           db[targetEmail]!['profile'] = user.toMap();
           await _saveUsersDb(db);
+        } catch (_) {
+          user = _buildGoogleUser(targetEmail, targetName, photoUrl);
         }
-      } catch (_) {
+      } else {
         user = _buildGoogleUser(targetEmail, targetName, photoUrl);
+        db[targetEmail] = {
+          'passwordHash': _hashPassword(_uuid.v4()),
+          'profile': user.toMap(),
+        };
+        await _saveUsersDb(db);
       }
-    } else {
-      user = _buildGoogleUser(targetEmail, targetName, photoUrl);
-      db[targetEmail] = {
-        'passwordHash': _hashPassword(_uuid.v4()),
-        'profile': user.toMap(),
-      };
-      await _saveUsersDb(db);
-    }
 
-    await _saveSession(user);
-    return user;
+      await _saveSession(user);
+      return user;
+    } catch (e) {
+      debugPrint('[comiAPP Auth] Error en signInWithGoogle oficial: $e');
+      rethrow;
+    }
   }
 
   UserProfile _buildGoogleUser(String email, String name, String? photoUrl) =>
@@ -305,6 +359,12 @@ class LocalAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async {
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
     await _saveSession(null);
   }
 

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../models/ai_session_state.dart';
@@ -12,8 +11,6 @@ import '../services/mock_gemini_live_client.dart';
 class AiChefProvider extends ChangeNotifier {
   AsistenteIA _assistant;
   final _uuid = const Uuid();
-  static const String _geminiApiKeyPref = 'comiapp_gemini_api_key';
-  static const String _geminiModelPref = 'comiapp_gemini_model';
   String _currentApiKey = '';
   String _currentModel = AppConstants.defaultGeminiLiveModel;
 
@@ -51,28 +48,11 @@ class AiChefProvider extends ChangeNotifier {
                 ? GeminiLiveClient(apiKey: apiKey, model: model)
                 : MockGeminiLiveClient()) {
     _subscribe();
-    _loadSavedApiKey();
   }
 
   bool get isRealGeminiLive => _assistant is GeminiLiveClient;
   String get currentApiKey => _currentApiKey;
   String get currentModel => _currentModel;
-
-  Future<void> _loadSavedApiKey() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedKey = prefs.getString(_geminiApiKeyPref);
-      final savedModel = prefs.getString(_geminiModelPref) ?? _currentModel;
-      if (savedKey != null &&
-          savedKey.isNotEmpty &&
-          savedKey != 'mock_or_demo_key' &&
-          _currentApiKey.isEmpty) {
-        await setApiKey(savedKey, model: savedModel);
-      }
-    } catch (e) {
-      debugPrint('Error loading saved Gemini API Key: $e');
-    }
-  }
 
   Future<void> setApiKey(String key, {String? model}) async {
     final cleanKey = key.trim();
@@ -81,22 +61,10 @@ class AiChefProvider extends ChangeNotifier {
       _currentModel = model;
     }
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      if (cleanKey.isEmpty || cleanKey == 'mock_or_demo_key') {
-        await prefs.remove(_geminiApiKeyPref);
-        _assistant = MockGeminiLiveClient();
-      } else {
-        await prefs.setString(_geminiApiKeyPref, cleanKey);
-        await prefs.setString(_geminiModelPref, _currentModel);
-        _assistant = GeminiLiveClient(apiKey: cleanKey, model: _currentModel);
-      }
-    } catch (_) {
-      if (cleanKey.isNotEmpty && cleanKey != 'mock_or_demo_key') {
-        _assistant = GeminiLiveClient(apiKey: cleanKey, model: _currentModel);
-      } else {
-        _assistant = MockGeminiLiveClient();
-      }
+    if (cleanKey.isNotEmpty && cleanKey != 'mock_or_demo_key') {
+      _assistant = GeminiLiveClient(apiKey: cleanKey, model: _currentModel);
+    } else {
+      _assistant = MockGeminiLiveClient();
     }
 
     _statusSub?.cancel();

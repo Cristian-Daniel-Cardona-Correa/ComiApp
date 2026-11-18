@@ -81,35 +81,13 @@ class AiChefModal extends StatelessWidget {
                           children: [
                             Text('El Chef comiAPP',
                                 style: AppTypography.titleLarge),
-                            const SizedBox(width: 6),
-                            IconButton(
-                              icon: Icon(
-                                aiProv.isRealGeminiLive
-                                    ? Icons.vpn_key_rounded
-                                    : Icons.key_outlined,
-                                size: 18,
-                                color: aiProv.isRealGeminiLive
-                                    ? AppColors.primaryTeal
-                                    : AppColors.textMuted,
-                              ),
-                              tooltip: 'Configurar Gemini API Key',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _showApiKeyDialog(context, aiProv),
-                            ),
                           ],
                         ),
                         Text(
-                          aiProv.isRealGeminiLive
-                              ? 'Gemini Live (API Real) • Voz y Cámara'
-                              : 'Gemini Live (Demo) • Voz y Cámara',
+                          'Gemini Live • Voz y Cámara',
                           style: AppTypography.bodySmall.copyWith(
-                            color: aiProv.isRealGeminiLive
-                                ? AppColors.primaryDarkTeal
-                                : AppColors.textMuted,
-                            fontWeight: aiProv.isRealGeminiLive
-                                ? FontWeight.w600
-                                : FontWeight.normal,
+                            color: AppColors.primaryDarkTeal,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -354,60 +332,4 @@ class AiChefModal extends StatelessWidget {
     );
   }
 
-  static void _showApiKeyDialog(BuildContext context, AiChefProvider aiProv) {
-    final controller = TextEditingController(text: aiProv.currentApiKey);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.creamBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.outlineDark, width: 2),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.vpn_key_rounded, color: AppColors.primaryTeal),
-            const SizedBox(width: 10),
-            Text('Gemini API Key', style: AppTypography.titleLarge),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ingresa tu clave de Google Gemini para habilitar la API real de Gemini Live por WebSocket bidireccional.',
-              style: AppTypography.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'AIzaSy...',
-                labelText: 'API Key',
-                prefixIcon: Icon(Icons.key_rounded),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await aiProv.setApiKey('');
-              if (ctx.mounted) Navigator.of(ctx).pop();
-            },
-            child: const Text('Usar Demo'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await aiProv.setApiKey(controller.text.trim());
-              if (ctx.mounted) Navigator.of(ctx).pop();
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-  }
 }

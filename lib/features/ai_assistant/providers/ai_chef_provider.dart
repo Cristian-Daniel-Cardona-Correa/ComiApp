@@ -95,6 +95,9 @@ class AiChefProvider extends ChangeNotifier {
   }
 
   AiAssistantStatus get status => _status;
+  bool get isSessionActive =>
+      _status != AiAssistantStatus.desconectado &&
+      _status != AiAssistantStatus.error;
   bool get isMicMuted => _isMicMuted;
   bool get isRecordingSpeech => !_isMicMuted;
   bool get isCameraActive => _isCameraActive;
@@ -319,6 +322,14 @@ class AiChefProvider extends ChangeNotifier {
   }
 
   Future<void> startSession(AiCookingContext context) async {
+    // Si la sesión ya se encuentra activa para la misma receta, mantenerla viva sin reiniciar
+    if (isSessionActive && _currentRecipeId == context.recipe.id) {
+      debugPrint('[comiAPP AiChefProvider] Sesión ya activa para la receta ${context.recipe.id}. Continuando sin reiniciar conexión.');
+      _lastSessionContext = context;
+      notifyListeners();
+      return;
+    }
+
     _lastSessionContext = context;
     // Si es una receta distinta o nueva, reiniciar el historial de chat completamente
     if (_currentRecipeId != context.recipe.id) {

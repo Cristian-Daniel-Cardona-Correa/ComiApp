@@ -105,6 +105,12 @@ class ActiveCookingBanner extends StatelessWidget {
                         recipe: recipe,
                         portions: sessionProv.portions,
                         onOpenAiChef: () async {
+                          if (aiProv.isSessionActive &&
+                              aiProv.currentRecipeId == recipe.id) {
+                            AiChefModal.show(context);
+                            return;
+                          }
+
                           final granted =
                               await AiPermissionsDialog.requestConsent(context);
                           if (!granted || !context.mounted) return;
@@ -117,7 +123,7 @@ class ActiveCookingBanner extends StatelessWidget {
                             preferences: authProv.user?.preferences ??
                                 const DietaryPreferences(),
                           );
-                          aiProv.startSession(cookingCtx);
+                          await aiProv.startSession(cookingCtx);
                           if (context.mounted) {
                             AiChefModal.show(context);
                           }

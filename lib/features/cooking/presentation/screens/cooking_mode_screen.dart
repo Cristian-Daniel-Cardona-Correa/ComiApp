@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../recipes/models/recipe.dart';
+import '../../../ai_assistant/providers/ai_chef_provider.dart';
+import '../../../ai_assistant/presentation/screens/ai_chef_modal.dart';
 import '../../providers/cooking_session_provider.dart';
 import '../../providers/timer_provider.dart';
 import '../widgets/active_timers_sheet.dart';
@@ -178,15 +180,16 @@ class _CookingModeScreenState extends State<CookingModeScreen> {
                 foregroundColor: AppColors.primaryTeal,
               ),
               onPressed: () {
-                if (widget.onOpenAiChef != null) {
+                final aiProv =
+                    Provider.of<AiChefProvider?>(context, listen: false);
+                if (aiProv != null &&
+                    aiProv.isSessionActive &&
+                    aiProv.currentRecipeId == widget.recipe.id) {
+                  AiChefModal.show(context);
+                } else if (widget.onOpenAiChef != null) {
                   widget.onOpenAiChef!();
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Abriendo Asistente Chef IA...'),
-                      backgroundColor: AppColors.primaryTeal,
-                    ),
-                  );
+                  AiChefModal.show(context);
                 }
               },
             ),

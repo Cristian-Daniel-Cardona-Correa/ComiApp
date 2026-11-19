@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../recipes/models/recipe.dart';
+import '../../../ai_assistant/providers/ai_chef_provider.dart';
+import '../../../ai_assistant/presentation/screens/ai_chef_modal.dart';
 import '../../providers/cooking_session_provider.dart';
 import '../../providers/timer_provider.dart';
 import '../widgets/active_timers_sheet.dart';
@@ -178,15 +180,16 @@ class _CookingModeScreenState extends State<CookingModeScreen> {
                 foregroundColor: AppColors.primaryTeal,
               ),
               onPressed: () {
-                if (widget.onOpenAiChef != null) {
+                final aiProv =
+                    Provider.of<AiChefProvider?>(context, listen: false);
+                if (aiProv != null &&
+                    aiProv.isSessionActive &&
+                    aiProv.currentRecipeId == widget.recipe.id) {
+                  AiChefModal.show(context);
+                } else if (widget.onOpenAiChef != null) {
                   widget.onOpenAiChef!();
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Abriendo Asistente Chef IA...'),
-                      backgroundColor: AppColors.primaryTeal,
-                    ),
-                  );
+                  AiChefModal.show(context);
                 }
               },
             ),
@@ -349,6 +352,38 @@ class _CookingModeScreenState extends State<CookingModeScreen> {
                                   label: Text(
                                       'Iniciar temporizador (${step.timerMinutes} min)'),
                                 ),
+                              ] else if (isTimerFinished) ...[
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: ElevatedButton.icon(
+                                        onPressed: () =>
+                                            timerProv.cancelTimer(stepTimer.id),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.errorCoral,
+                                          foregroundColor: Colors.white,
+                                          minimumSize: const Size(0, 44),
+                                        ),
+                                        icon: const Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 18),
+                                        label: const Text('Listo • Descartar'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    IconButton.filled(
+                                      onPressed: () =>
+                                          timerProv.cancelTimer(stepTimer.id),
+                                      icon: const Icon(Icons.close_rounded,
+                                          size: 18),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: AppColors.mintSoft,
+                                        foregroundColor: AppColors.errorCoral,
+                                      ),
+                                      tooltip: 'Eliminar temporizador',
+                                    ),
+                                  ],
+                                ),
                               ] else ...[
                                 Row(
                                   children: [
@@ -372,19 +407,27 @@ class _CookingModeScreenState extends State<CookingModeScreen> {
                                             : 'Reanudar'),
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        onPressed: () =>
-                                            timerProv.addOneMinute(stepTimer.id),
-                                        style: ElevatedButton.styleFrom(
-                                          minimumSize: const Size(0, 44),
-                                          backgroundColor:
-                                              AppColors.highlightYellow,
-                                        ),
-                                        icon: const Icon(Icons.add, size: 16),
-                                        label: const Text('+1 min'),
+                                    const SizedBox(width: 6),
+                                    ElevatedButton.icon(
+                                      onPressed: () =>
+                                          timerProv.addOneMinute(stepTimer.id),
+                                      style: ElevatedButton.styleFrom(
+                                        minimumSize: const Size(0, 44),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10),
+                                        backgroundColor:
+                                            AppColors.highlightYellow,
                                       ),
+                                      icon: const Icon(Icons.add, size: 16),
+                                      label: const Text('+1 min'),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    IconButton(
+                                      icon: const Icon(Icons.close_rounded,
+                                          color: AppColors.errorCoral),
+                                      tooltip: 'Cancelar temporizador',
+                                      onPressed: () =>
+                                          timerProv.cancelTimer(stepTimer.id),
                                     ),
                                   ],
                                 ),

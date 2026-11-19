@@ -15,23 +15,36 @@ rules_version = '2';
 //   - hasAcceptedPrivacyConsent: bool      (required)
 //   - createdAt                : timestamp (required, immutable after create, must be recent on create)
 //
+// Subcollection: users/{uid}/custom_recipes
+// Document ID: {recipeId} — matches the recipe's id field
+// Fields:
+//   - id                       : string    (required, 1–100 chars, immutable after create)
+//   - title                    : string    (required, 1–100 chars)
+//   - description              : string    (required, ≤ 1000 chars)
+//   - imageUrl                 : string    (required, ≤ 2048 chars)
+//   - prepTimeMinutes          : int|number(required, > 0)
+//   - defaultPortions          : int|number(required, > 0)
+//   - difficulty               : string    (required, 1–20 chars)
+//   - dietaryTags              : list      (required, ≤ 30 elements)
+//   - isVegetarian             : bool      (required)
+//   - isVegan                  : bool      (required)
+//   - isGlutenFree             : bool      (required)
+//   - isCustom                 : bool      (required)
+//   - ingredients              : list      (required, ≤ 100 elements)
+//   - steps                    : list      (required, ≤ 50 elements)
+//   - createdAt                : timestamp|string (optional)
+//   - updatedAt                : timestamp|string (optional)
+//
 // Access rules:
-//   - read   : owner only (non-anonymous authenticated user)
-//   - create : owner only (non-anonymous authenticated user, all required fields, recent createdAt)
-//   - update : owner only (non-anonymous authenticated user; email & createdAt are immutable)
-//   - delete : owner only (non-anonymous authenticated user)
+//   - users/{uid}:
+//     - read/create/update/delete : owner only (non-anonymous authenticated user)
+//   - users/{uid}/custom_recipes/{recipeId}:
+//     - read/create/update/delete : owner only (any authenticated user including anonymous/guests with UID)
+//   - recipes/{recipeId}:
+//     - read   : public
+//     - write  : denied
 //
 // All other collections / paths: DENY ALL (default deny at root wildcard).
-//
-// Authentication providers:
-//   - email/password → allowed
-//   - Google Sign-In → allowed
-//   - anonymous      → BLOCKED from all users/* access
-//
-// NOTE: The previous rules file also contained rules for collections
-//   `recipes` and `users/{uid}/sessions` that are NOT covered by this
-//   file per the specification. If those collections are still in use,
-//   re-add their rules explicitly.
 //
 // ===============================================================
 
@@ -64,6 +77,13 @@ service cloud.firestore {
       return isAuthenticated()
           && request.auth.uid == uid
           && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // Returns true when the caller is authenticated (including anonymous /
+    // guest users with a valid UID) and matches the target UID.
+    function isUserOwner(uid) {
+      return isAuthenticated()
+          && request.auth.uid == uid;
     }
 
     // Validates that a string value is within the given length bounds.
@@ -108,8 +128,7 @@ service cloud.firestore {
       return prefs is map && prefs.size() <= 20;
     }
 
-    // Strict schema enforcement — only the declared fields are permitted.
-    // Prevents schema pollution (e.g., injecting isAdmin, role, extraData).
+    // Strict schema enforcement for user profiles — only declared fields permitted.
     function hasOnlyAllowedUserFields(data) {
       return data.keys().hasOnly([
         'name',
@@ -122,7 +141,7 @@ service cloud.firestore {
       ]);
     }
 
-    // Ensures all required fields are present in the incoming document.
+    // Ensures all required user profile fields are present.
     function hasRequiredUserFields(data) {
       return data.keys().hasAll([
         'name',
@@ -143,12 +162,56 @@ service cloud.firestore {
     }
 
     // ============================================================
+    // Custom Recipe Schema Validation Functions
+    // ============================================================
+
+    // Strict schema enforcement for custom recipes
+    function hasOnlyAllowedRecipeFields(data) {
+      return data.keys().hasOnly([
+        'id',
+        'title',
+        'description',
+        'imageUrl',
+        'prepTimeMinutes',
+        'difficulty',
+        'defaultPortions',
+        'dietaryTags',
+        'isVegetarian',
+        'isVegan',
+        'isGlutenFree',
+        'isCustom',
+        'ingredients',
+        'steps',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    // Required fields for custom recipes
+    function hasRequiredRecipeFields(data) {
+      return data.keys().hasAll([
+        'id',
+        'title',
+        'description',
+        'imageUrl',
+        'prepTimeMinutes',
+        'difficulty',
+        'defaultPortions',
+        'dietaryTags',
+        'isVegetarian',
+        'isVegan',
+        'isGlutenFree',
+        'isCustom',
+        'ingredients',
+        'steps'
+      ]);
+    }
+
+    // ============================================================
     // Domain Validator — isValidUserDocument()
     //
     // CRITICAL: This function MUST be called in BOTH the create rule
-    // AND the update rule to prevent the "Update Bypass" vulnerability
-    // (where a valid create is followed by an unchecked update that
-    // injects a 1 MB string or removes required fields).
+    // AND the update rule to prevent the "Update Bypass" vulnerability.
     // ============================================================
     function isValidUserDocument(data) {
       return hasOnlyAllowedUserFields(data)
@@ -167,6 +230,45 @@ service cloud.firestore {
           && data.hasAcceptedPrivacyConsent is bool
           // createdAt: must be a Firestore timestamp type
           && data.createdAt is timestamp;
+    }
+
+    // ============================================================
+    // Domain Validator — isValidCustomRecipe()
+    //
+    // CRITICAL: This function MUST be called in BOTH the create rule
+    // AND the update rule to prevent the "Update Bypass" vulnerability.
+    // ============================================================
+    function isValidCustomRecipe(data) {
+      return hasOnlyAllowedRecipeFields(data)
+          && hasRequiredRecipeFields(data)
+          // id: non-empty string, 1 to 100 chars
+          && validString(data.id, 1, 100)
+          // title: string, 1 to 100 chars
+          && validString(data.title, 1, 100)
+          // description: string, <= 1000 chars
+          && data.description is string && data.description.size() <= 1000
+          // imageUrl: string, <= 2048 chars
+          && data.imageUrl is string && data.imageUrl.size() <= 2048
+          // prepTimeMinutes: positive int or number
+          && (data.prepTimeMinutes is int || data.prepTimeMinutes is number) && data.prepTimeMinutes > 0
+          // defaultPortions: positive int or number
+          && (data.defaultPortions is int || data.defaultPortions is number) && data.defaultPortions > 0
+          // difficulty: string (e.g. facil, medio, dificil, avanzado)
+          && data.difficulty is string && data.difficulty.size() >= 1 && data.difficulty.size() <= 20
+          // dietaryTags: list, bounded to prevent DoS
+          && data.dietaryTags is list && data.dietaryTags.size() <= 30
+          // boolean flags
+          && data.isVegetarian is bool
+          && data.isVegan is bool
+          && data.isGlutenFree is bool
+          && data.isCustom is bool
+          // ingredients: list, bounded to prevent DoS
+          && data.ingredients is list && data.ingredients.size() <= 100
+          // steps: list, bounded to prevent DoS
+          && data.steps is list && data.steps.size() <= 50
+          // optional timestamp/metadata validation
+          && (!('createdAt' in data) || data.createdAt is timestamp || data.createdAt is string)
+          && (!('updatedAt' in data) || data.updatedAt is timestamp || data.updatedAt is string);
     }
 
     // ============================================================
@@ -206,6 +308,32 @@ service cloud.firestore {
 
       // DELETE — owner only (non-anonymous)
       allow delete: if isOwner(uid);
+
+      // ============================================================
+      // Subcolección: users/{uid}/custom_recipes/{recipeId}
+      //
+      // Recetas personalizadas creadas por el usuario autenticado
+      // (incluyendo usuarios anónimos/invitados con UID).
+      // ============================================================
+      match /custom_recipes/{recipeId} {
+
+        // READ — solo el dueño del UID (incluye anónimos)
+        allow read: if isUserOwner(uid);
+
+        // CREATE — solo el dueño del UID, datos válidos, y el id coincide
+        allow create: if isUserOwner(uid)
+            && isValidCustomRecipe(request.resource.data)
+            && request.resource.data.id == recipeId;
+
+        // UPDATE — solo el dueño del UID, datos válidos, id inmutable
+        allow update: if isUserOwner(uid)
+            && isValidCustomRecipe(request.resource.data)
+            && request.resource.data.id == resource.data.id
+            && request.resource.data.id == recipeId;
+
+        // DELETE — solo el dueño del UID
+        allow delete: if isUserOwner(uid);
+      }
     }
 
     // Catálogo de recetas: lectura pública

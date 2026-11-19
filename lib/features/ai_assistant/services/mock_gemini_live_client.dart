@@ -42,6 +42,13 @@ class MockGeminiLiveClient implements AsistenteIA {
 
   @override
   Future<void> connect(AiCookingContext context) async {
+    if (_currentStatus == AiAssistantStatus.escuchando ||
+        _currentStatus == AiAssistantStatus.hablando ||
+        _currentStatus == AiAssistantStatus.pensando ||
+        _currentStatus == AiAssistantStatus.conectando) {
+      _context = context;
+      return;
+    }
     _context = context;
     _setStatus(AiAssistantStatus.conectando);
     await Future.delayed(const Duration(milliseconds: 500));

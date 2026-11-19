@@ -836,7 +836,7 @@ class InitialRecipes {
           description:
               'El monumento de la gastronomía española: papas pochadas a fuego lento, cebolla caramelizada y centro tierno.',
           imageUrl:
-              'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+              'https://content-cocina.lecturas.com/medio/2022/11/03/tortilla-de-patata_00000000_240227123029_1200x630.jpg',
           prepTimeMinutes: 35,
           difficulty: RecipeDifficulty.medio,
           defaultPortions: 4,

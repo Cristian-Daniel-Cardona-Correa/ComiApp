@@ -17,6 +17,7 @@ class CookingSessionProvider extends ChangeNotifier {
       : _repository = repository ?? CookingRepository();
 
   Recipe? get currentRecipe => _currentRecipe;
+  bool get hasActiveSession => _currentRecipe != null;
   int get currentStepIndex => _currentStepIndex;
   int get portions => _portions;
   bool get keepScreenAwake => _keepScreenAwake;

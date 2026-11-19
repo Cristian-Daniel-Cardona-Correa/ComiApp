@@ -49,6 +49,7 @@ class Recipe {
   final bool isGlutenFree;
   final List<Ingredient> ingredients;
   final List<CookingStep> steps;
+  final bool isCustom;
 
   const Recipe({
     required this.id,
@@ -64,6 +65,7 @@ class Recipe {
     this.isGlutenFree = false,
     required this.ingredients,
     required this.steps,
+    this.isCustom = false,
   });
 
   /// Busca un paso por su identificador único
@@ -98,12 +100,14 @@ class Recipe {
       'isGlutenFree': isGlutenFree,
       'ingredients': ingredients.map((i) => i.toMap()).toList(),
       'steps': steps.map((s) => s.toMap()).toList(),
+      'isCustom': isCustom,
     };
   }
 
   factory Recipe.fromMap(Map<String, dynamic> map) {
+    final id = map['id'] as String;
     return Recipe(
-      id: map['id'] as String,
+      id: id,
       title: map['title'] as String,
       description: map['description'] as String? ?? '',
       imageUrl: map['imageUrl'] as String? ?? '',
@@ -114,6 +118,7 @@ class Recipe {
       isVegetarian: map['isVegetarian'] as bool? ?? false,
       isVegan: map['isVegan'] as bool? ?? false,
       isGlutenFree: map['isGlutenFree'] as bool? ?? false,
+      isCustom: map['isCustom'] as bool? ?? id.startsWith('custom_'),
       ingredients: (map['ingredients'] as List<dynamic>?)
               ?.map((item) => Ingredient.fromMap(Map<String, dynamic>.from(item)))
               .toList() ??

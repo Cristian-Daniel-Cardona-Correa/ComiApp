@@ -10,8 +10,10 @@ import 'package:comiapp/features/auth/repositories/auth_repository.dart';
 import 'package:comiapp/features/recipes/providers/recipe_provider.dart';
 import 'package:comiapp/features/recipes/repositories/recipe_repository.dart';
 import 'package:comiapp/features/cooking/providers/timer_provider.dart';
+import 'package:comiapp/features/cooking/providers/cooking_session_provider.dart';
 import 'package:comiapp/features/cooking/repositories/cooking_repository.dart';
 import 'package:comiapp/features/cooking/services/notification_service.dart';
+import 'package:comiapp/features/ai_assistant/providers/ai_chef_provider.dart';
 
 /// Repositorio de autenticación falso para tests (sin Firebase ni red)
 class _MockAuthRepository implements AuthRepository {
@@ -141,6 +143,12 @@ Widget _buildApp() {
           repository: cookingRepo,
           notificationService: notificationService,
         ),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => CookingSessionProvider(repository: cookingRepo),
+      ),
+      ChangeNotifierProvider(
+        create: (_) => AiChefProvider(),
       ),
     ],
     child: const MaterialApp(home: LoginScreen()),

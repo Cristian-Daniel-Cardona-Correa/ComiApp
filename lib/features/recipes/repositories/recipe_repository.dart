@@ -1,9 +1,14 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/recipe.dart';
 import '../data/initial_recipes.dart';
 
 abstract class RecipeRepository {
-  Future<List<Recipe>> getAllRecipes();
+  Future<List<Recipe>> getAllRecipes({bool forceRefresh = false});
   Future<Recipe?> getRecipeById(String id);
   Future<List<Recipe>> searchRecipes({
     String query = '',
@@ -11,18 +16,176 @@ abstract class RecipeRepository {
     bool? veganOnly,
     bool? glutenFreeOnly,
   });
+  Future<void> saveCustomRecipe(Recipe recipe);
+  Future<void> deleteCustomRecipe(String recipeId);
+  Future<List<Recipe>> getCustomRecipes({bool forceRefresh = false});
+  Future<void> reloadCustomRecipes();
 }
 
 class LocalRecipeRepository implements RecipeRepository {
+  static const String _customRecipesKey = 'comiapp_custom_recipes';
+
   List<Recipe>? _cachedRecipes;
+  List<Recipe> _customRecipes = [];
+  bool _customLoaded = false;
 
   @override
-  Future<List<Recipe>> getAllRecipes() async {
-    if (_cachedRecipes == null) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      _cachedRecipes = List.from(InitialRecipes.recipes);
+  Future<List<Recipe>> getAllRecipes({bool forceRefresh = false}) async {
+    if (forceRefresh || _cachedRecipes == null || !_customLoaded) {
+      await _loadCustomRecipes(forceSyncWithFirestore: forceRefresh);
+      _cachedRecipes = [..._customRecipes, ...InitialRecipes.recipes];
     }
     return _cachedRecipes!;
+  }
+
+  @override
+  Future<List<Recipe>> getCustomRecipes({bool forceRefresh = false}) async {
+    if (forceRefresh || !_customLoaded) {
+      await _loadCustomRecipes(forceSyncWithFirestore: forceRefresh);
+    }
+    return List.unmodifiable(_customRecipes);
+  }
+
+  @override
+  Future<void> reloadCustomRecipes() async {
+    _customLoaded = false;
+    _cachedRecipes = null;
+    await _loadCustomRecipes(forceSyncWithFirestore: true);
+    _cachedRecipes = [..._customRecipes, ...InitialRecipes.recipes];
+  }
+
+  Future<void> _loadCustomRecipes({bool forceSyncWithFirestore = false}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_customRecipesKey);
+      if (raw != null && raw.isNotEmpty) {
+        final List<dynamic> list = json.decode(raw);
+        _customRecipes = list
+            .map((item) => Recipe.fromMap(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('[comiAPP RecipeRepository] Error cargando recetas de SharedPreferences: $e');
+    }
+
+    // Sincronización con Firestore si hay usuario autenticado
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final col = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('custom_recipes');
+
+        final snap = await col.get();
+
+        if (snap.docs.isNotEmpty) {
+          final cloudRecipes = snap.docs.map((doc) {
+            final data = Map<String, dynamic>.from(doc.data());
+            data['id'] = doc.id;
+            return Recipe.fromMap(data);
+          }).toList();
+
+          // Mezclar recetas de la nube con las locales
+          for (final cloud in cloudRecipes) {
+            final idx = _customRecipes.indexWhere((r) => r.id == cloud.id);
+            if (idx >= 0) {
+              _customRecipes[idx] = cloud;
+            } else {
+              _customRecipes.insert(0, cloud);
+            }
+          }
+        }
+
+        // Si tenemos recetas locales creadas que aún no están en Firestore, subirlas
+        for (final local in _customRecipes) {
+          final existsInCloud = snap.docs.any((d) => d.id == local.id);
+          if (!existsInCloud) {
+            debugPrint('[comiAPP RecipeRepository] Sincronizando receta local "${local.title}" (${local.id}) a Firestore...');
+            await col.doc(local.id).set(local.toMap(), SetOptions(merge: true));
+          }
+        }
+
+        await _saveCustomToLocal();
+      }
+    } catch (e) {
+      debugPrint('[comiAPP RecipeRepository] Firestore custom recipes sync: $e');
+    }
+
+    _customLoaded = true;
+  }
+
+  Future<void> _saveCustomToLocal() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonList = _customRecipes.map((r) => r.toMap()).toList();
+      await prefs.setString(_customRecipesKey, json.encode(jsonList));
+    } catch (e) {
+      debugPrint('[comiAPP RecipeRepository] Error guardando en SharedPreferences: $e');
+    }
+  }
+
+  @override
+  Future<void> saveCustomRecipe(Recipe recipe) async {
+    if (!_customLoaded) {
+      await _loadCustomRecipes();
+    }
+
+    final idx = _customRecipes.indexWhere((r) => r.id == recipe.id);
+    if (idx >= 0) {
+      _customRecipes[idx] = recipe;
+    } else {
+      _customRecipes.insert(0, recipe);
+    }
+
+    // Actualizar cache global
+    _cachedRecipes = [..._customRecipes, ...InitialRecipes.recipes];
+    await _saveCustomToLocal();
+
+    // Guardar en Firestore si hay usuario
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        debugPrint('[comiAPP RecipeRepository] Guardando receta "${recipe.title}" (${recipe.id}) en Firestore (users/${user.uid}/custom_recipes)...');
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('custom_recipes')
+            .doc(recipe.id)
+            .set(recipe.toMap(), SetOptions(merge: true));
+        debugPrint('[comiAPP RecipeRepository] ¡Receta guardada exitosamente en Firestore!');
+      } else {
+        debugPrint('[comiAPP RecipeRepository] Nota: No hay usuario en FirebaseAuth, receta guardada localmente.');
+      }
+    } catch (e) {
+      debugPrint('[comiAPP RecipeRepository] Error guardando receta en Firestore: $e');
+    }
+  }
+
+  @override
+  Future<void> deleteCustomRecipe(String recipeId) async {
+    if (!_customLoaded) {
+      await _loadCustomRecipes();
+    }
+
+    _customRecipes.removeWhere((r) => r.id == recipeId);
+    _cachedRecipes = [..._customRecipes, ...InitialRecipes.recipes];
+    await _saveCustomToLocal();
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        debugPrint('[comiAPP RecipeRepository] Eliminando receta $recipeId de Firestore...');
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('custom_recipes')
+            .doc(recipeId)
+            .delete();
+      }
+    } catch (e) {
+      debugPrint('[comiAPP RecipeRepository] Error eliminando de Firestore: $e');
+    }
   }
 
   @override

@@ -9,6 +9,7 @@ import 'ai_context_builder.dart';
 
 /// Cliente oficial para la Live API de Gemini por WebSocket bidireccional
 /// Compatible con Gemini 3.8 Live (gemini-3.8-live) en v1beta.
+/// Incluye auto-reconexión con backoff exponencial ante caídas inesperadas.
 class GeminiLiveClient implements AsistenteIA {
   final String apiKey;
   final String model;
@@ -23,6 +24,13 @@ class GeminiLiveClient implements AsistenteIA {
   final _toolCallController = StreamController<AiToolCall>.broadcast();
 
   AiAssistantStatus _currentStatus = AiAssistantStatus.desconectado;
+
+  // Reconexión automática
+  AiCookingContext? _lastContext;
+  bool _isIntentionalDisconnect = false;
+  int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 4;
+  Timer? _reconnectTimer;
 
   GeminiLiveClient({
     this.apiKey = '',
@@ -54,6 +62,22 @@ class GeminiLiveClient implements AsistenteIA {
 
   @override
   Future<void> connect(AiCookingContext context) async {
+    // Si ya estamos activamente conectados o conectando, evitar resetear el WebSocket
+    if (_currentStatus == AiAssistantStatus.escuchando ||
+        _currentStatus == AiAssistantStatus.hablando ||
+        _currentStatus == AiAssistantStatus.pensando ||
+        _currentStatus == AiAssistantStatus.conectando) {
+      debugPrint('[comiAPP GeminiLiveClient] Sesión ya activa o conectando. Omitiendo reconexión redundante.');
+      _lastContext = context;
+      return;
+    }
+    _lastContext = context;
+    _isIntentionalDisconnect = false;
+    _reconnectAttempts = 0;
+    await _doConnect(context);
+  }
+
+  Future<void> _doConnect(AiCookingContext context) async {
     _setStatus(AiAssistantStatus.conectando);
 
     try {
@@ -109,10 +133,35 @@ class GeminiLiveClient implements AsistenteIA {
       _channel!.sink.add(json.encode(setupMessage));
       _listenToMessages();
       _setStatus(AiAssistantStatus.escuchando);
+      _reconnectAttempts = 0; // Conexión exitosa → resetear contador
     } catch (e) {
       debugPrint('[comiAPP GeminiLiveClient] Error al conectar a Gemini Live: $e');
       _setStatus(AiAssistantStatus.error);
+      _scheduleReconnect();
     }
+  }
+
+  /// Agenda reconexión automática con backoff exponencial (2s, 4s, 8s, 16s)
+  void _scheduleReconnect() {
+    if (_isIntentionalDisconnect) return;
+    if (_lastContext == null) return;
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      debugPrint('[comiAPP GeminiLiveClient] Límite de reconexiones alcanzado ($_maxReconnectAttempts intentos). Desconectado permanentemente.');
+      _setStatus(AiAssistantStatus.error);
+      return;
+    }
+    _reconnectTimer?.cancel();
+    final delaySeconds = 1 << _reconnectAttempts; // 1, 2, 4, 8 segundos
+    _reconnectAttempts++;
+    debugPrint('[comiAPP GeminiLiveClient] Reconectando en ${delaySeconds}s (intento $_reconnectAttempts/$_maxReconnectAttempts)...');
+    _setStatus(AiAssistantStatus.conectando);
+    _reconnectTimer = Timer(Duration(seconds: delaySeconds), () async {
+      if (_isIntentionalDisconnect || _lastContext == null) return;
+      await _subscription?.cancel();
+      await _channel?.sink.close();
+      _channel = null;
+      await _doConnect(_lastContext!);
+    });
   }
 
   void _listenToMessages() {
@@ -220,11 +269,19 @@ class GeminiLiveClient implements AsistenteIA {
       onError: (err) {
         debugPrint('[comiAPP GeminiLiveClient] Error en WebSocket Stream: $err');
         _setStatus(AiAssistantStatus.error);
+        _scheduleReconnect();
       },
       onDone: () {
+        final closeCode = _channel?.closeCode;
+        final closeReason = _channel?.closeReason;
         debugPrint(
-            '[comiAPP GeminiLiveClient] WebSocket cerrado. CloseCode: ${_channel?.closeCode}, CloseReason: ${_channel?.closeReason}');
-        _setStatus(AiAssistantStatus.desconectado);
+            '[comiAPP GeminiLiveClient] WebSocket cerrado. CloseCode: $closeCode, CloseReason: $closeReason');
+        if (!_isIntentionalDisconnect) {
+          // Cierre inesperado (caída de red, timeout del servidor, etc.) → reconectar
+          _scheduleReconnect();
+        } else {
+          _setStatus(AiAssistantStatus.desconectado);
+        }
       },
     );
   }
@@ -360,6 +417,9 @@ class GeminiLiveClient implements AsistenteIA {
 
   @override
   Future<void> disconnect() async {
+    _isIntentionalDisconnect = true;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
     await _subscription?.cancel();
     await _channel?.sink.close();
     _channel = null;
@@ -368,6 +428,8 @@ class GeminiLiveClient implements AsistenteIA {
 
   @override
   void dispose() {
+    _isIntentionalDisconnect = true;
+    _reconnectTimer?.cancel();
     disconnect();
     _statusController.close();
     _transcriptController.close();

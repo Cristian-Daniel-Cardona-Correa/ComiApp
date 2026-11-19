@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
@@ -45,22 +46,50 @@ class RecipeCard extends StatelessWidget {
                 SizedBox(
                   height: 190,
                   width: double.infinity,
-                  child: Image.network(
-                    recipe.imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: AppColors.mintSoft,
-                        child: const Center(
-                          child: Icon(
-                            Icons.restaurant_rounded,
-                            size: 64,
-                            color: AppColors.primaryTeal,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                  child: recipe.imageUrl.startsWith('http')
+                      ? Image.network(
+                          recipe.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: AppColors.mintSoft,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.restaurant_rounded,
+                                  size: 64,
+                                  color: AppColors.primaryTeal,
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : (recipe.imageUrl.isNotEmpty
+                          ? Image.file(
+                              File(recipe.imageUrl),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: AppColors.mintSoft,
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.restaurant_rounded,
+                                      size: 64,
+                                      color: AppColors.primaryTeal,
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              color: AppColors.mintSoft,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.restaurant_rounded,
+                                  size: 64,
+                                  color: AppColors.primaryTeal,
+                                ),
+                              ),
+                            )),
                 ),
                 // Botón de favorito
                 if (onFavoriteToggle != null)

@@ -62,6 +62,15 @@ class GeminiLiveClient implements AsistenteIA {
 
   @override
   Future<void> connect(AiCookingContext context) async {
+    // Si ya estamos activamente conectados o conectando, evitar resetear el WebSocket
+    if (_currentStatus == AiAssistantStatus.escuchando ||
+        _currentStatus == AiAssistantStatus.hablando ||
+        _currentStatus == AiAssistantStatus.pensando ||
+        _currentStatus == AiAssistantStatus.conectando) {
+      debugPrint('[comiAPP GeminiLiveClient] Sesión ya activa o conectando. Omitiendo reconexión redundante.');
+      _lastContext = context;
+      return;
+    }
     _lastContext = context;
     _isIntentionalDisconnect = false;
     _reconnectAttempts = 0;

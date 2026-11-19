@@ -4,10 +4,12 @@ import 'package:uuid/uuid.dart';
 import '../models/cooking_timer.dart';
 import '../repositories/cooking_repository.dart';
 import '../services/notification_service.dart';
+import '../services/timer_sound_service.dart';
 
 class TimerProvider extends ChangeNotifier {
   final CookingRepository _repository;
   final NotificationService _notificationService;
+  final TimerSoundService _soundService;
   final _uuid = const Uuid();
 
   List<CookingTimer> _timers = [];
@@ -17,9 +19,11 @@ class TimerProvider extends ChangeNotifier {
   TimerProvider({
     CookingRepository? repository,
     NotificationService? notificationService,
+    TimerSoundService? soundService,
   })  : _repository = repository ?? CookingRepository(),
         _notificationService =
-            notificationService ?? LocalCookingNotificationService() {
+            notificationService ?? LocalCookingNotificationService(),
+        _soundService = soundService ?? TimerSoundService() {
     _init();
   }
 
@@ -70,6 +74,7 @@ class TimerProvider extends ChangeNotifier {
   void _onTick(Timer _) {
     final now = DateTime.now();
     bool hasChanged = false;
+    bool hasCompletedTimer = false;
 
     _timers = _timers.map((timer) {
       if (timer.status == TimerStatus.corriendo) {
@@ -77,6 +82,7 @@ class TimerProvider extends ChangeNotifier {
           final diff = timer.deadline!.difference(now).inSeconds;
           if (diff <= 0) {
             hasChanged = true;
+            hasCompletedTimer = true;
             return timer.copyWith(
               remainingSeconds: 0,
               status: TimerStatus.terminado,
@@ -89,6 +95,7 @@ class TimerProvider extends ChangeNotifier {
           final nextRem = timer.remainingSeconds - 1;
           hasChanged = true;
           if (nextRem <= 0) {
+            hasCompletedTimer = true;
             return timer.copyWith(
               remainingSeconds: 0,
               status: TimerStatus.terminado,
@@ -99,6 +106,10 @@ class TimerProvider extends ChangeNotifier {
       }
       return timer;
     }).toList();
+
+    if (hasCompletedTimer) {
+      _soundService.playTimerAlarm();
+    }
 
     if (hasChanged) {
       _evaluateTicker();

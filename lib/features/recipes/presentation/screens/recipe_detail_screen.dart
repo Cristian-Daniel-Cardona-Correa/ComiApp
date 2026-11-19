@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -8,6 +9,7 @@ import '../../models/recipe.dart';
 import '../../providers/recipe_provider.dart';
 import '../widgets/portion_selector.dart';
 import '../widgets/dietary_badge.dart';
+import 'create_recipe_screen.dart';
 import '../../../cooking/presentation/screens/cooking_mode_screen.dart';
 import '../../../cooking/providers/cooking_session_provider.dart';
 import '../../../cooking/providers/timer_provider.dart';
@@ -31,6 +33,7 @@ class RecipeDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final recipeProv = context.watch<RecipeProvider>();
     final authProv = context.watch<AuthProvider>();
+    final sessionProv = context.watch<CookingSessionProvider>();
     final portions = recipeProv.currentPortions;
     final isFav = authProv.user?.favoriteRecipeIds.contains(recipe.id) ?? false;
 
@@ -55,7 +58,26 @@ class RecipeDetailScreen extends StatelessWidget {
               ),
             ),
             actions: [
-              if (recipe.isCustom)
+              if (recipe.isCustom) ...[
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.white,
+                    child: IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          color: AppColors.primaryTeal),
+                      tooltip: 'Editar receta',
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                CreateRecipeScreen(recipeToEdit: recipe),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
                 Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: CircleAvatar(
@@ -68,6 +90,7 @@ class RecipeDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: CircleAvatar(
@@ -90,17 +113,39 @@ class RecipeDetailScreen extends StatelessWidget {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.network(
-                    recipe.imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      color: AppColors.mintSoft,
-                      child: const Center(
-                        child: Icon(Icons.restaurant_rounded,
-                            size: 80, color: AppColors.primaryTeal),
-                      ),
-                    ),
-                  ),
+                  recipe.imageUrl.startsWith('http')
+                      ? Image.network(
+                          recipe.imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Container(
+                            color: AppColors.mintSoft,
+                            child: const Center(
+                              child: Icon(Icons.restaurant_rounded,
+                                  size: 80, color: AppColors.primaryTeal),
+                            ),
+                          ),
+                        )
+                      : (recipe.imageUrl.isNotEmpty
+                          ? Image.file(
+                              File(recipe.imageUrl),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  Container(
+                                color: AppColors.mintSoft,
+                                child: const Center(
+                                  child: Icon(Icons.restaurant_rounded,
+                                      size: 80, color: AppColors.primaryTeal),
+                                ),
+                              ),
+                            )
+                          : Container(
+                              color: AppColors.mintSoft,
+                              child: const Center(
+                                child: Icon(Icons.restaurant_rounded,
+                                    size: 80, color: AppColors.primaryTeal),
+                              ),
+                            )),
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -418,8 +463,17 @@ class RecipeDetailScreen extends StatelessWidget {
                 );
               }
             },
-            icon: const Icon(Icons.outdoor_grill_rounded, size: 24),
-            label: const Text('Empezar a cocinar'),
+            icon: Icon(
+              sessionProv.currentRecipe?.id == recipe.id
+                  ? Icons.play_arrow_rounded
+                  : Icons.outdoor_grill_rounded,
+              size: 24,
+            ),
+            label: Text(
+              sessionProv.currentRecipe?.id == recipe.id
+                  ? 'Continuar cocinando (Paso ${sessionProv.currentStepIndex + 1}/${recipe.steps.length})'
+                  : 'Empezar a cocinar',
+            ),
           ),
         ),
       ),

@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -9,7 +11,9 @@ import '../../models/cooking_step.dart';
 import '../../providers/recipe_provider.dart';
 
 class CreateRecipeScreen extends StatefulWidget {
-  const CreateRecipeScreen({super.key});
+  final Recipe? recipeToEdit;
+
+  const CreateRecipeScreen({super.key, this.recipeToEdit});
 
   @override
   State<CreateRecipeScreen> createState() => _CreateRecipeScreenState();
@@ -18,17 +22,23 @@ class CreateRecipeScreen extends StatefulWidget {
 class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
   final _formKey = GlobalKey<FormState>();
   final _uuid = const Uuid();
+  final _picker = ImagePicker();
 
   // Controladores principales
   final _titleController = TextEditingController();
   final _descController = TextEditingController();
   final _prepTimeController = TextEditingController(text: '25');
+  final _imageUrlController = TextEditingController();
 
   int _portions = 2;
   RecipeDifficulty _difficulty = RecipeDifficulty.facil;
   bool _isVegetarian = false;
   bool _isVegan = false;
   bool _isGlutenFree = false;
+
+  // Imagen: puede ser ruta de archivo local o URL web
+  String? _selectedImagePath;
+  bool _isUrlMode = false;
 
   // Listas de datos dinámicos
   final List<Ingredient> _ingredients = [];
@@ -47,11 +57,46 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
 
   bool _isSaving = false;
 
+  bool get _isEditing => widget.recipeToEdit != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isEditing) {
+      final r = widget.recipeToEdit!;
+      _titleController.text = r.title;
+      _descController.text = r.description;
+      _prepTimeController.text = r.prepTimeMinutes.toString();
+      _portions = r.defaultPortions;
+      _difficulty = r.difficulty;
+      _isVegetarian = r.isVegetarian;
+      _isVegan = r.isVegan;
+      _isGlutenFree = r.isGlutenFree;
+      _ingredients.addAll(r.ingredients);
+      _steps.addAll(r.steps.map((s) => _StepData(
+            id: s.id,
+            title: s.title,
+            instruction: s.instruction,
+            hasTimer: s.hasTimer,
+            timerMinutes: s.timerMinutes,
+          )));
+
+      if (r.imageUrl.isNotEmpty) {
+        _selectedImagePath = r.imageUrl;
+        if (r.imageUrl.startsWith('http')) {
+          _imageUrlController.text = r.imageUrl;
+          _isUrlMode = true;
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
     _descController.dispose();
     _prepTimeController.dispose();
+    _imageUrlController.dispose();
     _ingNameController.dispose();
     _ingQtyController.dispose();
     _ingUnitController.dispose();
@@ -59,6 +104,34 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
     _stepDescController.dispose();
     _stepTimerController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final photo = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (photo != null && mounted) {
+        setState(() {
+          _selectedImagePath = photo.path;
+          _isUrlMode = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error al seleccionar imagen: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No se pudo cargar la imagen: $e'),
+            backgroundColor: AppColors.errorCoral,
+          ),
+        );
+      }
+    }
   }
 
   void _addIngredient() {
@@ -137,7 +210,9 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
     setState(() => _isSaving = true);
 
     try {
-      final recipeId = 'custom_${DateTime.now().millisecondsSinceEpoch}';
+      final recipeId = _isEditing
+          ? widget.recipeToEdit!.id
+          : 'custom_${DateTime.now().millisecondsSinceEpoch}';
       final prepTime = int.tryParse(_prepTimeController.text.trim()) ?? 25;
 
       final cookingSteps = _steps.asMap().entries.map((entry) {
@@ -160,14 +235,24 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
       if (_isGlutenFree) dietaryTags.add('Sin Gluten');
       if (prepTime <= 25) dietaryTags.add('Rápido');
 
-      final newRecipe = Recipe(
+      // Determinar imagen final
+      String finalImageUrl = '';
+      if (_isUrlMode && _imageUrlController.text.trim().isNotEmpty) {
+        finalImageUrl = _imageUrlController.text.trim();
+      } else if (_selectedImagePath != null && _selectedImagePath!.isNotEmpty) {
+        finalImageUrl = _selectedImagePath!;
+      } else {
+        finalImageUrl =
+            'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=800&q=80';
+      }
+
+      final savedRecipe = Recipe(
         id: recipeId,
         title: _titleController.text.trim(),
         description: _descController.text.trim().isEmpty
             ? 'Receta personalizada creada por ti en comiAPP.'
             : _descController.text.trim(),
-        imageUrl:
-            'https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=800&q=80',
+        imageUrl: finalImageUrl,
         prepTimeMinutes: prepTime,
         difficulty: _difficulty,
         defaultPortions: _portions,
@@ -181,13 +266,17 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
       );
 
       final recipeProv = context.read<RecipeProvider>();
-      await recipeProv.addCustomRecipe(newRecipe);
+      await recipeProv.addCustomRecipe(savedRecipe);
       recipeProv.selectCategory('Mis Recetas');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('¡Receta "${newRecipe.title}" guardada exitosamente!'),
+            content: Text(
+              _isEditing
+                  ? '¡Receta "${savedRecipe.title}" actualizada!'
+                  : '¡Receta "${savedRecipe.title}" guardada exitosamente!',
+            ),
             backgroundColor: AppColors.primaryTeal,
           ),
         );
@@ -212,7 +301,7 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
     return Scaffold(
       backgroundColor: AppColors.creamBackground,
       appBar: AppBar(
-        title: const Text('Crear Receta'),
+        title: Text(_isEditing ? 'Editar Receta' : 'Crear Receta'),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12.0),
@@ -226,7 +315,7 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
                     )
                   : const Icon(Icons.check_rounded, color: AppColors.primaryTeal),
               label: Text(
-                'Guardar',
+                _isEditing ? 'Actualizar' : 'Guardar',
                 style: AppTypography.button.copyWith(
                   color: AppColors.primaryTeal,
                   fontSize: 15,
@@ -271,6 +360,141 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
               ),
             ),
             const SizedBox(height: 14),
+
+            // ─── SECCIÓN: FOTO DE LA RECETA ──────────────────────────────────
+            Text('Foto de la Receta', style: AppTypography.titleMedium),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: AppColors.outlineDark, width: 2),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Vista previa si hay imagen
+                  if (_selectedImagePath != null && _selectedImagePath!.isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(
+                        height: 160,
+                        width: double.infinity,
+                        child: _selectedImagePath!.startsWith('http')
+                            ? Image.network(
+                                _selectedImagePath!,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Container(
+                                  color: AppColors.mintSoft,
+                                  child: const Center(
+                                    child: Icon(Icons.broken_image_outlined, size: 40),
+                                  ),
+                                ),
+                              )
+                            : Image.file(
+                                File(_selectedImagePath!),
+                                fit: BoxFit.cover,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _selectedImagePath = null;
+                              _imageUrlController.clear();
+                            });
+                          },
+                          icon: const Icon(Icons.delete_outline,
+                              size: 16, color: AppColors.errorCoral),
+                          label: const Text('Quitar foto',
+                              style: TextStyle(color: AppColors.errorCoral, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    // Selector de tipo de subida
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _pickImage(ImageSource.gallery),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 46),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            icon: const Icon(Icons.photo_library_outlined, size: 18),
+                            label: const Text('Galería', style: TextStyle(fontSize: 13)),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _pickImage(ImageSource.camera),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size(0, 46),
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                            label: const Text('Cámara', style: TextStyle(fontSize: 13)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    const Row(
+                      children: [
+                        Expanded(child: Divider()),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Text('o ingresa una URL web',
+                              style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                        ),
+                        Expanded(child: Divider()),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _imageUrlController,
+                            decoration: const InputDecoration(
+                              hintText: 'https://ejemplo.com/foto.jpg',
+                              prefixIcon: Icon(Icons.link_rounded, size: 20),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            final url = _imageUrlController.text.trim();
+                            if (url.isNotEmpty && url.startsWith('http')) {
+                              setState(() {
+                                _selectedImagePath = url;
+                                _isUrlMode = true;
+                              });
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryTeal,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 14),
+                          ),
+                          child: const Text('Cargar'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
 
             // Tiempo y Porciones
             Row(
@@ -703,7 +927,7 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
             ),
             const SizedBox(height: 32),
 
-            // Botón principal Guardar Receta
+            // Botón principal Guardar / Actualizar Receta
             ElevatedButton.icon(
               onPressed: _isSaving ? null : _saveRecipe,
               style: ElevatedButton.styleFrom(
@@ -723,9 +947,11 @@ class _CreateRecipeScreenState extends State<CreateRecipeScreen> {
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Icon(Icons.restaurant_rounded, size: 22),
+                  : Icon(_isEditing ? Icons.save_rounded : Icons.restaurant_rounded, size: 22),
               label: Text(
-                _isSaving ? 'Guardando receta...' : '¡Guardar y Cocinar!',
+                _isSaving
+                    ? (_isEditing ? 'Actualizando receta...' : 'Guardando receta...')
+                    : (_isEditing ? 'Actualizar Receta' : '¡Guardar y Cocinar!'),
                 style: AppTypography.titleMedium.copyWith(color: Colors.white),
               ),
             ),

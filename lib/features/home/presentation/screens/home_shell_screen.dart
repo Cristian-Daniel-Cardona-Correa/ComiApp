@@ -4,10 +4,12 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_typography.dart';
 import '../../../recipes/presentation/screens/catalog_screen.dart';
 import '../../../cooking/presentation/widgets/global_timer_banner.dart';
+import '../../../cooking/presentation/widgets/active_cooking_banner.dart';
 import '../../../cooking/presentation/widgets/active_timers_sheet.dart';
 import '../../../cooking/presentation/widgets/add_manual_timer_dialog.dart';
 import '../../../cooking/providers/timer_provider.dart';
 import '../../../auth/presentation/screens/profile_screen.dart';
+import '../../../ai_assistant/presentation/widgets/floating_ai_chef_badge.dart';
 
 class HomeShellScreen extends StatefulWidget {
   const HomeShellScreen({super.key});
@@ -39,13 +41,21 @@ class _HomeShellScreenState extends State<HomeShellScreen> {
             index: _currentIndex,
             children: pages,
           ),
-          // Banner flotante global de temporizadores activos (visible en Despensa y Perfil)
+          // Banners flotantes globales: Chef IA activa, Receta en curso y Temporizadores
           if (_currentIndex != 1)
             const Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              child: GlobalTimerBanner(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  FloatingAiChefBadge(),
+                  ActiveCookingBanner(),
+                  GlobalTimerBanner(),
+                ],
+              ),
             ),
         ],
       ),

@@ -62,7 +62,7 @@ class LocalRecipeRepository implements RecipeRepository {
     // Sincronización secundaria con Firestore si hay usuario autenticado
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null && !user.isAnonymous) {
+      if (user != null) {
         final snap = await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
@@ -125,7 +125,7 @@ class LocalRecipeRepository implements RecipeRepository {
     // Guardar en Firestore si hay usuario
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null && !user.isAnonymous) {
+      if (user != null) {
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
@@ -150,7 +150,7 @@ class LocalRecipeRepository implements RecipeRepository {
 
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user != null && !user.isAnonymous) {
+      if (user != null) {
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)

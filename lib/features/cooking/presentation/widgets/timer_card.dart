@@ -62,43 +62,69 @@ class TimerCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        isFinished
+                            ? Icons.notifications_active_rounded
+                            : Icons.timer_outlined,
+                        color: isFinished
+                            ? AppColors.errorCoral
+                            : AppColors.primaryTeal,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          timer.label,
+                          style: AppTypography.titleMedium.copyWith(fontSize: 16),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      isFinished
-                          ? Icons.notifications_active_rounded
-                          : Icons.timer_outlined,
-                      color: isFinished
-                          ? AppColors.errorCoral
-                          : AppColors.primaryTeal,
-                      size: 20,
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: isFinished
+                            ? AppColors.errorCoral
+                            : (isRunning
+                                ? AppColors.primaryTeal
+                                : AppColors.mintMedium),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        timer.status.label,
+                        style: AppTypography.badge.copyWith(
+                          color: (isFinished || isRunning)
+                              ? Colors.white
+                              : AppColors.textDark,
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      timer.label,
-                      style: AppTypography.titleMedium.copyWith(fontSize: 16),
+                    const SizedBox(width: 4),
+                    // Botón de eliminar/cerrar siempre presente en la cabecera
+                    InkWell(
+                      onTap: onCancel,
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 20,
+                          color: isFinished
+                              ? AppColors.errorCoral
+                              : AppColors.textDark.withValues(alpha: 0.7),
+                        ),
+                      ),
                     ),
                   ],
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: isFinished
-                        ? AppColors.errorCoral
-                        : (isRunning
-                            ? AppColors.primaryTeal
-                            : AppColors.mintMedium),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    timer.status.label,
-                    style: AppTypography.badge.copyWith(
-                      color: (isFinished || isRunning)
-                          ? Colors.white
-                          : AppColors.textDark,
-                    ),
-                  ),
                 ),
               ],
             ),
@@ -133,8 +159,36 @@ class TimerCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
 
-                // Fila 1: Pausar/Reanudar + Cancelar
-                if (!isFinished)
+                // Fila 1: Pausar/Reanudar + Cancelar (o botón Descartar si terminó)
+                if (isFinished)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: onCancel,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.errorCoral,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 44),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
+                          icon: const Icon(Icons.check_circle_rounded, size: 20),
+                          label: const Text('Completado • Descartar'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        onPressed: onCancel,
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        style: IconButton.styleFrom(
+                          backgroundColor: AppColors.mintSoft,
+                          foregroundColor: AppColors.errorCoral,
+                        ),
+                        tooltip: 'Eliminar temporizador',
+                      ),
+                    ],
+                  )
+                else
                   Row(
                     children: [
                       Expanded(

@@ -55,6 +55,19 @@ class RecipeDetailScreen extends StatelessWidget {
               ),
             ),
             actions: [
+              if (recipe.isCustom)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.white,
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded,
+                          color: AppColors.errorCoral),
+                      tooltip: 'Eliminar receta',
+                      onPressed: () => _confirmDelete(context, recipe),
+                    ),
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: CircleAvatar(
@@ -114,24 +127,28 @@ class RecipeDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Badges de tiempo y dificultad
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
                     children: [
+                      if (recipe.isCustom)
+                        DietaryBadge(
+                          label: 'Tu Receta',
+                          backgroundColor: AppColors.accentOrange,
+                          textColor: Colors.white,
+                        ),
                       DietaryBadge(
                         label: '${recipe.prepTimeMinutes} minutos',
                         backgroundColor: AppColors.highlightYellow,
                       ),
-                      const SizedBox(width: 8),
                       DietaryBadge(
                         label: recipe.difficulty.label,
                         backgroundColor: AppColors.mintSoft,
                       ),
-                      const SizedBox(width: 8),
                       if (recipe.isVegetarian)
                         const DietaryBadge(label: 'Vegetariano'),
-                      if (recipe.isGlutenFree) ...[
-                        const SizedBox(width: 8),
+                      if (recipe.isGlutenFree)
                         const DietaryBadge(label: 'Sin Gluten'),
-                      ],
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -405,6 +422,44 @@ class RecipeDetailScreen extends StatelessWidget {
             label: const Text('Empezar a cocinar'),
           ),
         ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, Recipe recipe) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('¿Eliminar receta?'),
+        content: Text(
+            '¿Seguro que deseas eliminar "${recipe.title}"? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(dialogCtx).pop();
+              await context
+                  .read<RecipeProvider>()
+                  .deleteCustomRecipe(recipe.id);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Receta "${recipe.title}" eliminada.'),
+                    backgroundColor: AppColors.errorCoral,
+                  ),
+                );
+                Navigator.of(context).pop();
+              }
+            },
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppColors.errorCoral),
+            child:
+                const Text('Eliminar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

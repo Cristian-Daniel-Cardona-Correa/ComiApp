@@ -10,11 +10,15 @@ import '../../../../core/theme/app_typography.dart';
 class CameraPreviewWidget extends StatefulWidget {
   final VoidCallback onCloseCamera;
   final ValueChanged<List<int>>? onFrameCaptured;
+  final ValueChanged<String>? onPhotoSaved;
+  final String? initialImagePath;
 
   const CameraPreviewWidget({
     super.key,
     required this.onCloseCamera,
     this.onFrameCaptured,
+    this.onPhotoSaved,
+    this.initialImagePath,
   });
 
   @override
@@ -25,6 +29,21 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
   final _picker = ImagePicker();
   String? _capturedImagePath;
   bool _isCapturing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _capturedImagePath = widget.initialImagePath;
+  }
+
+  @override
+  void didUpdateWidget(covariant CameraPreviewWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialImagePath != oldWidget.initialImagePath &&
+        widget.initialImagePath != null) {
+      _capturedImagePath = widget.initialImagePath;
+    }
+  }
 
   Future<void> _takePhoto() async {
     setState(() => _isCapturing = true);
@@ -40,6 +59,8 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
         setState(() {
           _capturedImagePath = photo.path;
         });
+
+        widget.onPhotoSaved?.call(photo.path);
 
         if (widget.onFrameCaptured != null) {
           final bytes = await photo.readAsBytes();

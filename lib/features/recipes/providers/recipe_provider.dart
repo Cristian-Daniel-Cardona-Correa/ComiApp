@@ -48,6 +48,30 @@ class RecipeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> addCustomRecipe(Recipe recipe) async {
+    _isLoading = true;
+    notifyListeners();
+
+    await _repository.saveCustomRecipe(recipe);
+    _recipes = await _repository.getAllRecipes();
+    _applyFilters();
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> deleteCustomRecipe(String recipeId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    await _repository.deleteCustomRecipe(recipeId);
+    _recipes = await _repository.getAllRecipes();
+    _applyFilters();
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
   void selectRecipe(Recipe recipe) {
     _selectedRecipe = recipe;
     _currentPortions = recipe.defaultPortions;
@@ -88,6 +112,9 @@ class RecipeProvider extends ChangeNotifier {
       }
 
       // Filtro por categoría seleccionada
+      if (_selectedCategory == 'Mis Recetas' && !recipe.isCustom) {
+        return false;
+      }
       if (_selectedCategory == 'Vegetariano' && !recipe.isVegetarian) {
         return false;
       }

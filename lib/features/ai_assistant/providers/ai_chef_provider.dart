@@ -32,7 +32,9 @@ class AiChefProvider extends ChangeNotifier {
   // Temporizador de duración de sesión y avisos de límites
   Timer? _sessionDurationTimer;
   int _sessionSeconds = 0;
+  int _cameraActiveSeconds = 0;
   String? _sessionLimitWarning;
+  String? _lastCapturedPhotoPath;
 
   // Watchdog: detecta estado "pensando" colgado y fuerza reconexión
   Timer? _watchdogTimer;
@@ -103,6 +105,22 @@ class AiChefProvider extends ChangeNotifier {
   String? get sessionLimitWarning => _sessionLimitWarning;
   int get sessionSeconds => _sessionSeconds;
   String? get currentRecipeId => _currentRecipeId;
+  String? get lastCapturedPhotoPath => _lastCapturedPhotoPath;
+
+  void setCapturedPhoto(String path) {
+    _lastCapturedPhotoPath = path;
+    notifyListeners();
+  }
+
+  void clearCapturedPhoto() {
+    _lastCapturedPhotoPath = null;
+    notifyListeners();
+  }
+
+  void clearSessionLimitWarning() {
+    _sessionLimitWarning = null;
+    notifyListeners();
+  }
 
   /// Reinicia el historial del chat para iniciar una conversación limpia
   void clearConversation() {
@@ -310,7 +328,9 @@ class AiChefProvider extends ChangeNotifier {
       _currentRecipeId = context.recipe.id;
     }
     _sessionSeconds = 0;
+    _cameraActiveSeconds = 0;
     _sessionLimitWarning = null;
+    _lastCapturedPhotoPath = null;
     _isChefTurnActive = false;
     _isUserVoiceTurnActive = false;
     _startSessionTimer();
@@ -330,11 +350,14 @@ class AiChefProvider extends ChangeNotifier {
 
       // Límites de la UI requeridos por la especificación:
       // "solo audio ≈ 15 min; audio + video ≈ 2 min"
-      if (_isCameraActive && _sessionSeconds >= AppConstants.maxVideoSessionMinutes * 60) {
-        _sessionLimitWarning =
-            'Límite de video alcanzado (2 min). La cámara se apagará para mantener el audio.';
-        _isCameraActive = false;
-        notifyListeners();
+      if (_isCameraActive) {
+        _cameraActiveSeconds++;
+        if (_cameraActiveSeconds >= AppConstants.maxVideoSessionMinutes * 60) {
+          _sessionLimitWarning =
+              'Límite de cámara continua alcanzado (2 min). Se pausó la transmisión para mantener el audio fluido.';
+          _isCameraActive = false;
+          notifyListeners();
+        }
       } else if (_sessionSeconds >=
           (AppConstants.maxAudioSessionMinutes * 60 -
               AppConstants.sessionTimeoutWarningSeconds)) {
@@ -381,6 +404,9 @@ class AiChefProvider extends ChangeNotifier {
 
   void toggleCamera() {
     _isCameraActive = !_isCameraActive;
+    if (_isCameraActive) {
+      _cameraActiveSeconds = 0;
+    }
     notifyListeners();
   }
 
@@ -423,6 +449,9 @@ class AiChefProvider extends ChangeNotifier {
     await _audioManager.stopPlayback();
     await _assistant.disconnect();
     _isCameraActive = false;
+    _cameraActiveSeconds = 0;
+    _lastCapturedPhotoPath = null;
+    _sessionLimitWarning = null;
     _isMicMuted = true;
     _isChefTurnActive = false;
     _isUserVoiceTurnActive = false;

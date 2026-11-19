@@ -166,7 +166,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
           ),
           const SizedBox(height: 12),
 
-          // Lista de recetas
+          // Lista de recetas con soporte de Pull-to-Refresh
           Expanded(
             child: recipeProv.isLoading
                 ? const Center(
@@ -175,36 +175,48 @@ class _CatalogScreenState extends State<CatalogScreen> {
                           AlwaysStoppedAnimation<Color>(AppColors.primaryTeal),
                     ),
                   )
-                : displayedRecipes.isEmpty
-                    ? _buildEmptyState(
-                        isFavorites: showingFavorites,
-                        isCustom: recipeProv.selectedCategory == _customCategory,
-                      )
-                    : ListView.builder(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 20.0),
-                        itemCount: displayedRecipes.length,
-                        itemBuilder: (context, index) {
-                          final recipe = displayedRecipes[index];
-                          final isFav = favorites.contains(recipe.id);
-                          return RecipeCard(
-                            recipe: recipe,
-                            isFavorite: isFav,
-                            onFavoriteToggle: () {
-                              authProv.toggleFavorite(recipe.id);
-                            },
-                            onTap: () {
-                              recipeProv.selectRecipe(recipe);
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      RecipeDetailScreen(recipe: recipe),
-                                ),
+                : RefreshIndicator(
+                    color: AppColors.primaryTeal,
+                    onRefresh: () => recipeProv.loadRecipes(forceRefresh: true),
+                    child: displayedRecipes.isEmpty
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: SizedBox(
+                              height: 400,
+                              child: _buildEmptyState(
+                                isFavorites: showingFavorites,
+                                isCustom:
+                                    recipeProv.selectedCategory == _customCategory,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 20.0),
+                            itemCount: displayedRecipes.length,
+                            itemBuilder: (context, index) {
+                              final recipe = displayedRecipes[index];
+                              final isFav = favorites.contains(recipe.id);
+                              return RecipeCard(
+                                recipe: recipe,
+                                isFavorite: isFav,
+                                onFavoriteToggle: () {
+                                  authProv.toggleFavorite(recipe.id);
+                                },
+                                onTap: () {
+                                  recipeProv.selectRecipe(recipe);
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          RecipeDetailScreen(recipe: recipe),
+                                    ),
+                                  );
+                                },
                               );
                             },
-                          );
-                        },
-                      ),
+                          ),
+                  ),
           ),
         ],
       ),

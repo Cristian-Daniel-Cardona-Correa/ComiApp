@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/recipe.dart';
 import '../repositories/recipe_repository.dart';
 
 class RecipeProvider extends ChangeNotifier {
   final RecipeRepository _repository;
+  StreamSubscription<User?>? _authSubscription;
 
   List<Recipe> _recipes = [];
   List<Recipe> _filteredRecipes = [];
@@ -15,6 +18,24 @@ class RecipeProvider extends ChangeNotifier {
 
   RecipeProvider(this._repository) {
     loadRecipes();
+    _listenAuthChanges();
+  }
+
+  void _listenAuthChanges() {
+    try {
+      _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
+        debugPrint('[comiAPP RecipeProvider] Cambio en sesión de usuario (UID: ${user?.uid}). Sincronizando recetas...');
+        loadRecipes(forceRefresh: true);
+      });
+    } catch (e) {
+      debugPrint('[comiAPP RecipeProvider] authStateChanges no disponible en este entorno: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   List<Recipe> get recipes => _recipes;
@@ -25,11 +46,11 @@ class RecipeProvider extends ChangeNotifier {
   Recipe? get selectedRecipe => _selectedRecipe;
   int get currentPortions => _currentPortions;
 
-  Future<void> loadRecipes() async {
+  Future<void> loadRecipes({bool forceRefresh = false}) async {
     _isLoading = true;
     notifyListeners();
 
-    _recipes = await _repository.getAllRecipes();
+    _recipes = await _repository.getAllRecipes(forceRefresh: forceRefresh);
     _applyFilters();
 
     _isLoading = false;
@@ -53,7 +74,7 @@ class RecipeProvider extends ChangeNotifier {
     notifyListeners();
 
     await _repository.saveCustomRecipe(recipe);
-    _recipes = await _repository.getAllRecipes();
+    _recipes = await _repository.getAllRecipes(forceRefresh: true);
     _applyFilters();
 
     _isLoading = false;
@@ -65,7 +86,7 @@ class RecipeProvider extends ChangeNotifier {
     notifyListeners();
 
     await _repository.deleteCustomRecipe(recipeId);
-    _recipes = await _repository.getAllRecipes();
+    _recipes = await _repository.getAllRecipes(forceRefresh: true);
     _applyFilters();
 
     _isLoading = false;

@@ -9,12 +9,16 @@ abstract class AsistenteIA {
   Stream<AiAssistantStatus> get statusStream;
   Stream<String> get transcriptStream;
   Stream<AiToolCall> get toolCallStream;
+  Stream<String> get userTranscriptStream => const Stream.empty();
+  Stream<List<int>> get audioOutputStream => const Stream.empty();
   AiAssistantStatus get currentStatus;
 
   Future<void> connect(AiCookingContext context);
   Future<void> sendUserSpeechChunk(List<int> pcm16Bytes);
+  Future<void> sendAudioStreamEnd() => Future.value();
   Future<void> sendCameraFrame(List<int> jpegBytes);
   Future<void> sendTextMessage(String text);
+  Future<void> sendToolResponse(String callId, String functionName, String result) => Future.value();
   Future<void> interrupt();
   Future<void> disconnect();
   void dispose();

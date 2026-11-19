@@ -9,6 +9,8 @@ class MockGeminiLiveClient implements AsistenteIA {
   final _uuid = const Uuid();
   final _statusController = StreamController<AiAssistantStatus>.broadcast();
   final _transcriptController = StreamController<String>.broadcast();
+  final _userTranscriptController = StreamController<String>.broadcast();
+  final _audioOutputController = StreamController<List<int>>.broadcast();
   final _toolCallController = StreamController<AiToolCall>.broadcast();
 
   AiAssistantStatus _currentStatus = AiAssistantStatus.desconectado;
@@ -20,6 +22,12 @@ class MockGeminiLiveClient implements AsistenteIA {
 
   @override
   Stream<String> get transcriptStream => _transcriptController.stream;
+
+  @override
+  Stream<String> get userTranscriptStream => _userTranscriptController.stream;
+
+  @override
+  Stream<List<int>> get audioOutputStream => _audioOutputController.stream;
 
   @override
   Stream<AiToolCall> get toolCallStream => _toolCallController.stream;
@@ -63,6 +71,23 @@ class MockGeminiLiveClient implements AsistenteIA {
         'Veo bien el color en la sartén. Un minuto más de dorado y quedará en su punto.',
       );
     }
+  }
+
+  @override
+  Future<void> sendAudioStreamEnd() async {
+    // Al finalizar el turno de voz del usuario en mock, simula respuesta
+    _setStatus(AiAssistantStatus.pensando);
+    await Future.delayed(const Duration(milliseconds: 500));
+    _speak('Te escuché perfectamente. Continúa cocinando y avísame si necesitas ayuda.');
+  }
+
+  @override
+  Future<void> sendToolResponse(
+      String callId, String functionName, String result) async {
+    // Simula la confirmación verbal del Chef tras ejecutar la acción
+    _setStatus(AiAssistantStatus.pensando);
+    await Future.delayed(const Duration(milliseconds: 400));
+    _speak('Listo, $result.');
   }
 
   @override
@@ -169,6 +194,8 @@ class MockGeminiLiveClient implements AsistenteIA {
     disconnect();
     _statusController.close();
     _transcriptController.close();
+    _userTranscriptController.close();
+    _audioOutputController.close();
     _toolCallController.close();
   }
 }

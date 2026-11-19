@@ -1,12 +1,10 @@
 import 'dart:async';
-import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:uuid/uuid.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../models/user_profile.dart';
 
 /// Contrato del repositorio de autenticación
@@ -25,17 +23,21 @@ abstract class AuthRepository {
   Future<void> signOut();
 }
 
-/// Implementación local persistente con SharedPreferences.
-/// Registra usuarios reales: el correo y contraseña se almacenan de forma segura
-/// (hash XOR simple — sin red — hasta integrar Firebase Auth real).
+/// Implementación Firebase: Firebase Auth para autenticación + Firestore para perfiles.
+/// Colección: `users/{uid}` guarda el perfil extendido del usuario.
 class LocalAuthRepository implements AuthRepository {
   static const String _sessionKey = 'comiapp_session_user';
-  static const String _usersDbKey = 'comiapp_users_db';
   static const String _onboardingCompleteKey = 'comiapp_onboarding_completed';
 
-  final _uuid = const Uuid();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+
   final _authController = StreamController<UserProfile?>.broadcast();
   UserProfile? _currentUser;
+  bool _initialized = false;
+
+  CollectionReference<Map<String, dynamic>> get _usersCol =>
+      _db.collection('users');
 
   @override
   Stream<UserProfile?> get authStateChanges => _authController.stream;
@@ -47,140 +49,125 @@ class LocalAuthRepository implements AuthRepository {
 
   @override
   Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    final sessionJson = prefs.getString(_sessionKey);
-    if (sessionJson != null) {
-      try {
-        _currentUser = UserProfile.fromJson(sessionJson);
-      } catch (_) {
-        _currentUser = null;
-      }
+    if (_initialized) {
+      _authController.add(_currentUser);
+      return;
     }
+    _initialized = true;
 
-    // Restaurar desde Firebase Auth si la sesión local está vacía
-    if (_currentUser == null) {
-      try {
-        final fbUser = FirebaseAuth.instance.currentUser;
-        if (fbUser != null) {
-          final email = fbUser.email ?? 'usuario@google.com';
-          final db = await _loadUsersDb();
-          if (db.containsKey(email)) {
-            try {
-              _currentUser = UserProfile.fromMap(
-                  Map<String, dynamic>.from(db[email]!['profile'] as Map));
-            } catch (_) {
-              _currentUser = _buildGoogleUser(
-                  email, fbUser.displayName ?? 'Usuario', fbUser.photoURL);
-            }
-          } else {
-            _currentUser = _buildGoogleUser(
-                email, fbUser.displayName ?? 'Usuario', fbUser.photoURL);
+    try {
+      final fbUser = _auth.currentUser;
+      if (fbUser != null) {
+        _currentUser = await _fetchOrCreateProfile(fbUser);
+        await _cacheSession(_currentUser);
+      } else {
+        // Sin sesión de Firebase, intentar caché local para modo offline
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString(_sessionKey);
+        if (cached != null) {
+          try {
+            _currentUser = UserProfile.fromJson(cached);
+          } catch (_) {
+            _currentUser = null;
           }
-          await _saveSession(_currentUser);
         }
-      } catch (e) {
-        debugPrint('Error restaurando sesión de Firebase: $e');
       }
+    } catch (e) {
+      debugPrint('[comiAPP Auth] Error en initialize(): $e');
+      _currentUser = null;
     }
 
     _authController.add(_currentUser);
   }
 
-  // ─── Persistencia de sesión activa ─────────────────────────────────────────
+  // ─── Caché local (solo para restauración offline) ──────────────────────────
 
-  Future<void> _saveSession(UserProfile? user) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (user == null) {
-      await prefs.remove(_sessionKey);
-    } else {
-      await prefs.setString(_sessionKey, user.toJson());
-      await prefs.setBool(_onboardingCompleteKey, true);
-    }
+  Future<void> _cacheSession(UserProfile? user) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (user == null) {
+        await prefs.remove(_sessionKey);
+      } else {
+        await prefs.setString(_sessionKey, user.toJson());
+        await prefs.setBool(_onboardingCompleteKey, true);
+      }
+    } catch (_) {}
     _currentUser = user;
     _authController.add(user);
   }
 
-  // ─── Base de datos local de usuarios registrados ───────────────────────────
+  // ─── Firestore: obtener o crear perfil ────────────────────────────────────
 
-  Future<Map<String, Map<String, dynamic>>> _loadUsersDb() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_usersDbKey);
-    if (raw == null) return {};
-    try {
-      final decoded = json.decode(raw) as Map<String, dynamic>;
-      return decoded.map((k, v) => MapEntry(k, Map<String, dynamic>.from(v as Map)));
-    } catch (_) {
-      return {};
+  Future<UserProfile> _fetchOrCreateProfile(User fbUser,
+      {String? displayName}) async {
+    final uid = fbUser.uid;
+    final doc = await _usersCol.doc(uid).get();
+
+    if (doc.exists) {
+      try {
+        return UserProfile.fromFirestore(doc);
+      } catch (e) {
+        debugPrint('[comiAPP Auth] Error parseando perfil de Firestore: $e');
+      }
     }
+
+    // Crear perfil nuevo en Firestore
+    final name =
+        displayName ?? fbUser.displayName ?? fbUser.email?.split('@').first ?? 'Cocinero comiAPP';
+    final profile = UserProfile(
+      id: uid,
+      name: name,
+      email: fbUser.email ?? '',
+      photoUrl: fbUser.photoURL,
+      preferences: const DietaryPreferences(),
+      favoriteRecipeIds: const [],
+      hasAcceptedPrivacyConsent: false,
+      createdAt: DateTime.now(),
+    );
+    await _usersCol.doc(uid).set(profile.toFirestore());
+    return profile;
   }
 
-  Future<void> _saveUsersDb(Map<String, Map<String, dynamic>> db) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_usersDbKey, json.encode(db));
+  Future<void> _saveProfile(UserProfile profile) async {
+    await _usersCol.doc(profile.id).set(
+          profile.toFirestore(),
+          SetOptions(merge: true),
+        );
+    await _cacheSession(profile);
   }
 
-  /// Hash simplísimo (XOR + base64) solo para no guardar contraseñas en texto plano.
-  /// En producción con Firebase Auth esto no se necesita — Firebase lo gestiona.
-  String _hashPassword(String password) {
-    const salt = 'comiApp2024!';
-    final combined = password + salt;
-    final bytes = combined.codeUnits;
-    final hashed = bytes.map((b) => b ^ 42).toList();
-    return base64.encode(hashed);
-  }
-
-  // ─── Autenticación por email ───────────────────────────────────────────────
+  // ─── Autenticación por email/password ─────────────────────────────────────
 
   @override
   Future<UserProfile> signInWithEmailPassword(
       String email, String password) async {
-    await Future.delayed(const Duration(milliseconds: 700));
-
     final emailClean = email.trim().toLowerCase();
-    if (emailClean.isEmpty) {
-      throw Exception('El correo electrónico es obligatorio.');
-    }
-    if (password.isEmpty) {
-      throw Exception('La contraseña es obligatoria.');
-    }
+    if (emailClean.isEmpty) throw Exception('El correo es obligatorio.');
+    if (password.isEmpty) throw Exception('La contraseña es obligatoria.');
 
-    final db = await _loadUsersDb();
-    final record = db[emailClean];
-
-    if (record == null) {
-      throw Exception(
-          'No existe ninguna cuenta con ese correo. ¿Quieres registrarte?');
-    }
-
-    final storedHash = record['passwordHash'] as String? ?? '';
-    if (_hashPassword(password) != storedHash) {
-      throw Exception('Contraseña incorrecta. Verifica e inténtalo de nuevo.');
-    }
-
-    // Cargar perfil guardado y actualizar sesión
-    UserProfile user;
     try {
-      user = UserProfile.fromMap(Map<String, dynamic>.from(record['profile'] as Map));
-    } catch (_) {
-      throw Exception('Error al cargar tu perfil. Contacta soporte.');
+      final credential = await _auth.signInWithEmailAndPassword(
+        email: emailClean,
+        password: password,
+      );
+      final fbUser = credential.user!;
+      final profile = await _fetchOrCreateProfile(fbUser);
+      await _cacheSession(profile);
+      return profile;
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_mapAuthError(e));
     }
-
-    await _saveSession(user);
-    return user;
   }
 
-  // ─── Registro ─────────────────────────────────────────────────────────────
+  // ─── Registro con email/password ──────────────────────────────────────────
 
   @override
   Future<UserProfile> registerWithEmailPassword(
       String name, String email, String password) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    final emailClean = email.trim().toLowerCase();
-
     if (name.trim().length < 2) {
       throw Exception('El nombre debe tener al menos 2 caracteres.');
     }
+    final emailClean = email.trim().toLowerCase();
     final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
     if (!emailRegex.hasMatch(emailClean)) {
       throw Exception('Ingresa un correo electrónico válido.');
@@ -189,149 +176,110 @@ class LocalAuthRepository implements AuthRepository {
       throw Exception('La contraseña debe tener al menos 6 caracteres.');
     }
 
-    final db = await _loadUsersDb();
-    if (db.containsKey(emailClean)) {
-      throw Exception(
-          'Ya existe una cuenta con ese correo. ¿Quieres iniciar sesión?');
-    }
+    try {
+      final credential = await _auth.createUserWithEmailAndPassword(
+        email: emailClean,
+        password: password,
+      );
+      final fbUser = credential.user!;
 
-    final user = UserProfile(
-      id: _uuid.v4(),
-      name: name.trim(),
-      email: emailClean,
-      preferences: const DietaryPreferences(),
-      favoriteRecipeIds: const [],
-      hasAcceptedPrivacyConsent: false,
-      createdAt: DateTime.now(),
-    );
+      // Actualizar displayName en Firebase Auth
+      await fbUser.updateDisplayName(name.trim());
 
-    db[emailClean] = {
-      'passwordHash': _hashPassword(password),
-      'profile': user.toMap(),
-    };
-    await _saveUsersDb(db);
-    await _saveSession(user);
-    return user;
-  }
-
-  // ─── Actualizar perfil en la BD local ──────────────────────────────────────
-
-  Future<void> _syncUserToDb(UserProfile user) async {
-    final db = await _loadUsersDb();
-    final key = user.email.toLowerCase();
-    if (db.containsKey(key)) {
-      db[key]!['profile'] = user.toMap();
-      await _saveUsersDb(db);
+      // Crear perfil en Firestore
+      final profile = UserProfile(
+        id: fbUser.uid,
+        name: name.trim(),
+        email: emailClean,
+        photoUrl: null,
+        preferences: const DietaryPreferences(),
+        favoriteRecipeIds: const [],
+        hasAcceptedPrivacyConsent: false,
+        createdAt: DateTime.now(),
+      );
+      await _usersCol.doc(fbUser.uid).set(profile.toFirestore());
+      await _cacheSession(profile);
+      return profile;
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_mapAuthError(e));
     }
   }
 
-  // ─── Google Sign-In Oficial con Firebase Auth ────────────────────────────
+  // ─── Google Sign-In ───────────────────────────────────────────────────────
 
   @override
   Future<UserProfile> signInWithGoogle() async {
     try {
-      // 1. Iniciar el flujo nativo oficial pasando el serverClientId de Firebase
-      final googleSignIn = GoogleSignIn(
-        serverClientId: AppConstants.googleServerClientId,
-      );
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      final googleUser = await GoogleSignIn(
+        serverClientId:
+            '474523548597-c5fjh692tpjnhpqkgq64aca0fr53emp3.apps.googleusercontent.com',
+      ).signIn();
       if (googleUser == null) {
-        throw 'Inicio de sesión con Google cancelado';
+        throw Exception('Inicio de sesión cancelado.');
       }
 
-      // 2. Obtener los detalles de autenticación del request
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
-      // 3. Crear una nueva credencial para Firebase
+      final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // 4. Iniciar sesión en Firebase con la credencial de Google
-      final UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-
-      final firebaseUser = userCredential.user;
-      final targetEmail =
-          firebaseUser?.email ?? googleUser.email.toLowerCase();
-      final targetName = firebaseUser?.displayName ??
-          googleUser.displayName ??
-          'Usuario de Google';
-      final photoUrl = firebaseUser?.photoURL ?? googleUser.photoUrl;
-
-      final db = await _loadUsersDb();
-      UserProfile user;
-      if (db.containsKey(targetEmail)) {
-        try {
-          user = UserProfile.fromMap(
-              Map<String, dynamic>.from(db[targetEmail]!['profile'] as Map));
-          user = user.copyWith(
-            name: targetName,
-            photoUrl: photoUrl ?? user.photoUrl,
-          );
-          db[targetEmail]!['profile'] = user.toMap();
-          await _saveUsersDb(db);
-        } catch (_) {
-          user = _buildGoogleUser(targetEmail, targetName, photoUrl);
-        }
-      } else {
-        user = _buildGoogleUser(targetEmail, targetName, photoUrl);
-        db[targetEmail] = {
-          'passwordHash': _hashPassword(_uuid.v4()),
-          'profile': user.toMap(),
-        };
-        await _saveUsersDb(db);
-      }
-
-      await _saveSession(user);
-      return user;
+      final userCredential = await _auth.signInWithCredential(credential);
+      final fbUser = userCredential.user!;
+      final profile = await _fetchOrCreateProfile(fbUser,
+          displayName: googleUser.displayName);
+      await _cacheSession(profile);
+      return profile;
     } on PlatformException catch (e) {
-      debugPrint('[comiAPP Auth] PlatformException en Google Sign-In: ${e.code} - ${e.message}');
+      debugPrint('[comiAPP Auth] PlatformException Google: ${e.code} ${e.message}');
       if (e.message?.contains('10:') == true || e.code == 'sign_in_failed') {
-        throw 'Error de configuración de Google (Código 10): Registra la huella SHA-1 de tu máquina en la consola de Firebase del proyecto comiapp-fea78.';
+        throw Exception(
+            'Error de configuración de Google (Código 10): Registra la huella SHA-1 en la consola de Firebase.');
       }
       rethrow;
-    } catch (e) {
-      debugPrint('[comiAPP Auth] Error en signInWithGoogle oficial: $e');
-      rethrow;
+    } on FirebaseAuthException catch (e) {
+      throw Exception(_mapAuthError(e));
     }
   }
-
-  UserProfile _buildGoogleUser(String email, String name, String? photoUrl) =>
-      UserProfile(
-        id: _uuid.v4(),
-        name: name,
-        email: email,
-        photoUrl: photoUrl ??
-            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-        preferences: const DietaryPreferences(
-          experience: CookingExperience.intermedio,
-        ),
-        hasAcceptedPrivacyConsent: false,
-        createdAt: DateTime.now(),
-      );
 
   // ─── Invitado ──────────────────────────────────────────────────────────────
 
   @override
   Future<UserProfile> signInAsGuest() async {
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    final user = UserProfile(
-      id: 'guest_${DateTime.now().millisecondsSinceEpoch}',
-      name: 'Cocinero Invitado',
-      email: 'invitado@comiapp.local',
-      preferences: const DietaryPreferences(
-        experience: CookingExperience.principiante,
-      ),
-      hasAcceptedPrivacyConsent: true,
-      createdAt: DateTime.now(),
-    );
-
-    await _saveSession(user);
-    return user;
+    try {
+      final credential = await _auth.signInAnonymously();
+      final fbUser = credential.user!;
+      final profile = UserProfile(
+        id: fbUser.uid,
+        name: 'Cocinero Invitado',
+        email: '',
+        preferences: const DietaryPreferences(
+          experience: CookingExperience.principiante,
+        ),
+        favoriteRecipeIds: const [],
+        hasAcceptedPrivacyConsent: true,
+        createdAt: DateTime.now(),
+      );
+      // No guardamos perfil de invitado en Firestore (es anónimo)
+      await _cacheSession(profile);
+      return profile;
+    } on FirebaseAuthException catch (e) {
+      // Si Firebase anónimo no está habilitado, usar perfil local
+      debugPrint('[comiAPP Auth] signInAnonymously falló: $e, usando perfil local');
+      final profile = UserProfile(
+        id: 'guest_${DateTime.now().millisecondsSinceEpoch}',
+        name: 'Cocinero Invitado',
+        email: '',
+        preferences: const DietaryPreferences(
+          experience: CookingExperience.principiante,
+        ),
+        favoriteRecipeIds: const [],
+        hasAcceptedPrivacyConsent: true,
+        createdAt: DateTime.now(),
+      );
+      await _cacheSession(profile);
+      return profile;
+    }
   }
 
   // ─── Preferencias y favoritos ──────────────────────────────────────────────
@@ -340,8 +288,7 @@ class LocalAuthRepository implements AuthRepository {
   Future<void> updatePreferences(DietaryPreferences prefs) async {
     if (_currentUser == null) return;
     final updated = _currentUser!.copyWith(preferences: prefs);
-    await _saveSession(updated);
-    await _syncUserToDb(updated);
+    await _saveProfile(updated);
   }
 
   @override
@@ -354,29 +301,31 @@ class LocalAuthRepository implements AuthRepository {
       favorites.add(recipeId);
     }
     final updated = _currentUser!.copyWith(favoriteRecipeIds: favorites);
-    await _saveSession(updated);
-    await _syncUserToDb(updated);
+    await _saveProfile(updated);
   }
 
   @override
   Future<void> acceptPrivacyConsent() async {
+    if (_currentUser == null) {
+      // Intentar cargar desde caché local
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getString(_sessionKey);
+        if (cached != null) _currentUser = UserProfile.fromJson(cached);
+      } catch (_) {}
+    }
     if (_currentUser == null) return;
     final updated = _currentUser!.copyWith(hasAcceptedPrivacyConsent: true);
-    await _saveSession(updated);
-    await _syncUserToDb(updated);
+    await _saveProfile(updated);
   }
 
   // ─── Cierre de sesión ──────────────────────────────────────────────────────
 
   @override
   Future<void> signOut() async {
-    try {
-      await GoogleSignIn().signOut();
-    } catch (_) {}
-    try {
-      await FirebaseAuth.instance.signOut();
-    } catch (_) {}
-    await _saveSession(null);
+    try { await GoogleSignIn().signOut(); } catch (_) {}
+    try { await _auth.signOut(); } catch (_) {}
+    await _cacheSession(null);
   }
 
   // ─── Onboarding ───────────────────────────────────────────────────────────
@@ -389,5 +338,32 @@ class LocalAuthRepository implements AuthRepository {
   static Future<void> completeOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_onboardingCompleteKey, true);
+  }
+
+  // ─── Mapeo de errores de Firebase Auth ────────────────────────────────────
+
+  String _mapAuthError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+        return 'No existe ninguna cuenta con ese correo. ¿Quieres registrarte?';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Contraseña incorrecta. Verifica e inténtalo de nuevo.';
+      case 'email-already-in-use':
+        return 'Ya existe una cuenta con ese correo. ¿Quieres iniciar sesión?';
+      case 'weak-password':
+        return 'La contraseña debe tener al menos 6 caracteres.';
+      case 'invalid-email':
+        return 'Ingresa un correo electrónico válido.';
+      case 'too-many-requests':
+        return 'Demasiados intentos fallidos. Espera unos minutos.';
+      case 'network-request-failed':
+        return 'Sin conexión a internet. Verifica tu red.';
+      case 'operation-not-allowed':
+        return 'Este método de inicio de sesión no está habilitado. Actívalo en Firebase Console.';
+      default:
+        debugPrint('[comiAPP Auth] FirebaseAuthException: ${e.code} - ${e.message}');
+        return 'Error de autenticación (${e.code}). Inténtalo de nuevo.';
+    }
   }
 }

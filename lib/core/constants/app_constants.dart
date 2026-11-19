@@ -19,9 +19,8 @@ class AppConstants {
   static const int cameraJpegQuality = 80;
   static const int cameraImageDimension = 768;
 
-  // Modelo Gemini Live recomendado por defecto
-  static const String defaultGeminiLiveModel =
-      'gemini-2.5-flash-native-audio-preview-12-2025';
+  // Modelo Gemini Live recomendado por defecto (Gemini 3.8 Live GA)
+  static const String defaultGeminiLiveModel = 'gemini-3.8-live';
 
   // OAuth Web Client ID de Firebase para Google Sign-In en Android
   static const String googleServerClientId =

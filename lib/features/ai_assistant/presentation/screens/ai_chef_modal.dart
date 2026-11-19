@@ -81,35 +81,13 @@ class AiChefModal extends StatelessWidget {
                           children: [
                             Text('El Chef comiAPP',
                                 style: AppTypography.titleLarge),
-                            const SizedBox(width: 6),
-                            IconButton(
-                              icon: Icon(
-                                aiProv.isRealGeminiLive
-                                    ? Icons.vpn_key_rounded
-                                    : Icons.key_outlined,
-                                size: 18,
-                                color: aiProv.isRealGeminiLive
-                                    ? AppColors.primaryTeal
-                                    : AppColors.textMuted,
-                              ),
-                              tooltip: 'Configurar Gemini API Key',
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () => _showApiKeyDialog(context, aiProv),
-                            ),
                           ],
                         ),
                         Text(
-                          aiProv.isRealGeminiLive
-                              ? 'Gemini Live (API Real) • Voz y Cámara'
-                              : 'Gemini Live (Demo) • Voz y Cámara',
+                          'Gemini Live • Voz y Cámara',
                           style: AppTypography.bodySmall.copyWith(
-                            color: aiProv.isRealGeminiLive
-                                ? AppColors.primaryDarkTeal
-                                : AppColors.textMuted,
-                            fontWeight: aiProv.isRealGeminiLive
-                                ? FontWeight.w600
-                                : FontWeight.normal,
+                            color: AppColors.primaryDarkTeal,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -121,18 +99,22 @@ class AiChefModal extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                   decoration: BoxDecoration(
-                    color: status == AiAssistantStatus.hablando
-                        ? AppColors.accentOrange
-                        : (status == AiAssistantStatus.pensando
-                            ? AppColors.highlightYellow
-                            : AppColors.mintSoft),
+                    color: status == AiAssistantStatus.error
+                        ? AppColors.errorCoral
+                        : (status == AiAssistantStatus.hablando
+                            ? AppColors.accentOrange
+                            : (status == AiAssistantStatus.pensando
+                                ? AppColors.highlightYellow
+                                : AppColors.mintSoft)),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: AppColors.outlineDark, width: 1.5),
                   ),
                   child: Text(
                     status.label,
                     style: AppTypography.badge.copyWith(
-                      color: AppColors.textDark,
+                      color: status == AiAssistantStatus.error
+                          ? Colors.white
+                          : AppColors.textDark,
                     ),
                   ),
                 ),
@@ -175,7 +157,7 @@ class AiChefModal extends StatelessWidget {
                 onFrameCaptured: (bytes) => aiProv.sendCameraFrame(bytes),
               ),
 
-            // Visualizador de ondas sonoras
+            // Visualizador de ondas sonoras estilo CAVA reactivo a la voz
             Container(
               padding: const EdgeInsets.symmetric(vertical: 18),
               decoration: BoxDecoration(
@@ -183,7 +165,10 @@ class AiChefModal extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppColors.outlineDark, width: 2),
               ),
-              child: SoundwaveVisualizer(status: status),
+              child: SoundwaveVisualizer(
+                status: status,
+                voiceLevelStream: aiProv.voiceLevelStream,
+              ),
             ),
             const SizedBox(height: 14),
 
@@ -200,11 +185,18 @@ class AiChefModal extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.record_voice_over_outlined,
-                          size: 16, color: AppColors.primaryDarkTeal),
+                      Icon(
+                        aiProv.messages.isNotEmpty && aiProv.messages.last.isUser
+                            ? Icons.mic_rounded
+                            : Icons.record_voice_over_outlined,
+                        size: 16,
+                        color: AppColors.primaryDarkTeal,
+                      ),
                       const SizedBox(width: 6),
                       Text(
-                        'Transcripción en vivo:',
+                        aiProv.messages.isNotEmpty && aiProv.messages.last.isUser
+                            ? 'Tú dijiste:'
+                            : 'La Chef comiAPP:',
                         style: AppTypography.badge
                             .copyWith(color: AppColors.primaryDarkTeal),
                       ),
@@ -212,12 +204,12 @@ class AiChefModal extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    aiProv.latestTranscript.isNotEmpty
-                        ? aiProv.latestTranscript
-                        : 'El chef te escucha. Habla con naturalidad o muéstrale tus ingredientes...',
+                    aiProv.messages.isNotEmpty
+                        ? aiProv.messages.last.text
+                        : 'La chef te escucha. Habla con naturalidad o muéstrale tus ingredientes...',
                     style: AppTypography.bodyMedium.copyWith(
                       color: AppColors.textDark,
-                      fontStyle: aiProv.latestTranscript.isEmpty
+                      fontStyle: aiProv.messages.isEmpty
                           ? FontStyle.italic
                           : FontStyle.normal,
                     ),
@@ -252,7 +244,7 @@ class AiChefModal extends StatelessWidget {
               ),
             const SizedBox(height: 16),
 
-            // Botón de Interrumpir (Barge-in manual) si el chef está hablando
+            // Botón de Interrumpir (Barge-in manual) si la chef está hablando
             if (isSpeaking)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
@@ -260,7 +252,7 @@ class AiChefModal extends StatelessWidget {
                   onPressed: () => aiProv.interruptChef(),
                   icon: const Icon(Icons.pan_tool_rounded,
                       color: AppColors.errorCoral),
-                  label: const Text('Interrumpir al Chef (Barge-in)'),
+                  label: const Text('Interrumpir a la Chef'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.errorCoral,
                     side: const BorderSide(
@@ -270,26 +262,62 @@ class AiChefModal extends StatelessWidget {
                 ),
               ),
 
-            // Barra de controles: Micrófono, Cámara, Chat Fallback, Terminar
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Toggle Micrófono
-                IconButton.filled(
-                  icon: Icon(aiProv.isMicMuted
-                      ? Icons.mic_off_rounded
-                      : Icons.mic_rounded),
-                  style: IconButton.styleFrom(
-                    backgroundColor: aiProv.isMicMuted
+            // Botón principal Push-to-Talk / Tap-to-Talk (estilo asistente de voz IA)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14.0),
+              child: GestureDetector(
+                onTap: () => aiProv.toggleMic(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: aiProv.isRecordingSpeech
                         ? AppColors.errorCoral
                         : AppColors.primaryTeal,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.all(14),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: AppColors.outlineDark, width: 2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (aiProv.isRecordingSpeech
+                                ? AppColors.errorCoral
+                                : AppColors.primaryTeal)
+                            .withValues(alpha: 0.35),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  tooltip: aiProv.isMicMuted ? 'Activar micrófono' : 'Silenciar',
-                  onPressed: () => aiProv.toggleMic(),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        aiProv.isRecordingSpeech
+                            ? Icons.stop_circle_rounded
+                            : Icons.mic_rounded,
+                        color: Colors.white,
+                        size: 26,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        aiProv.isRecordingSpeech
+                            ? 'Escuchando... Toca para enviar'
+                            : 'Toca para hablar',
+                        style: AppTypography.titleMedium.copyWith(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
+            ),
 
+            // Barra de controles secundarios: Cámara, Chat Fallback, Terminar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 // Toggle Cámara
                 IconButton.filled(
                   icon: Icon(aiProv.isCameraActive
@@ -299,9 +327,7 @@ class AiChefModal extends StatelessWidget {
                     backgroundColor: aiProv.isCameraActive
                         ? AppColors.accentOrange
                         : Colors.white,
-                    foregroundColor: aiProv.isCameraActive
-                        ? AppColors.textDark
-                        : AppColors.textDark,
+                    foregroundColor: AppColors.textDark,
                     side: const BorderSide(
                         color: AppColors.outlineDark, width: 2),
                     padding: const EdgeInsets.all(14),
@@ -333,18 +359,19 @@ class AiChefModal extends StatelessWidget {
                 ),
 
                 // Terminar sesión
-                ElevatedButton(
+                ElevatedButton.icon(
                   onPressed: () async {
                     await aiProv.endSession();
                     if (context.mounted) Navigator.of(context).pop();
                   },
+                  icon: const Icon(Icons.close_rounded, size: 18),
+                  label: const Text('Terminar'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.errorCoral,
                     foregroundColor: Colors.white,
-                    minimumSize: const Size(110, 48),
+                    minimumSize: const Size(120, 48),
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
-                  child: const Text('Terminar'),
                 ),
               ],
             ),
@@ -354,60 +381,4 @@ class AiChefModal extends StatelessWidget {
     );
   }
 
-  static void _showApiKeyDialog(BuildContext context, AiChefProvider aiProv) {
-    final controller = TextEditingController(text: aiProv.currentApiKey);
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.creamBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.outlineDark, width: 2),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.vpn_key_rounded, color: AppColors.primaryTeal),
-            const SizedBox(width: 10),
-            Text('Gemini API Key', style: AppTypography.titleLarge),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Ingresa tu clave de Google Gemini para habilitar la API real de Gemini Live por WebSocket bidireccional.',
-              style: AppTypography.bodySmall,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'AIzaSy...',
-                labelText: 'API Key',
-                prefixIcon: Icon(Icons.key_rounded),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              await aiProv.setApiKey('');
-              if (ctx.mounted) Navigator.of(ctx).pop();
-            },
-            child: const Text('Usar Demo'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              await aiProv.setApiKey(controller.text.trim());
-              if (ctx.mounted) Navigator.of(ctx).pop();
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-  }
 }

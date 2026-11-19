@@ -34,6 +34,13 @@ class AiChefProvider extends ChangeNotifier {
   int _sessionSeconds = 0;
   String? _sessionLimitWarning;
 
+  // Watchdog: detecta estado "pensando" colgado y fuerza reconexión
+  Timer? _watchdogTimer;
+  static const Duration _watchdogTimeout = Duration(seconds: 14);
+
+  // Contexto para reconexión automática
+  AiCookingContext? _lastSessionContext;
+
   StreamSubscription? _statusSub;
   StreamSubscription? _transcriptSub;
   StreamSubscription? _userTranscriptSub;
@@ -119,6 +126,13 @@ class AiChefProvider extends ChangeNotifier {
       } else if (newStatus == AiAssistantStatus.interrumpido) {
         _isChefTurnActive = false;
         _audioManager.stopPlayback();
+      }
+
+      // Watchdog: si entra en "pensando", armar temporizador de seguridad
+      if (newStatus == AiAssistantStatus.pensando) {
+        _startWatchdog();
+      } else {
+        _cancelWatchdog();
       }
 
       notifyListeners();
@@ -251,7 +265,43 @@ class AiChefProvider extends ChangeNotifier {
     await _assistant.sendToolResponse(toolCall.callId, toolCall.name, resultText);
   }
 
+  /// Inicia el watchdog: si "pensando" dura más de [_watchdogTimeout], reconecta
+  void _startWatchdog() {
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer(_watchdogTimeout, () {
+      if (_status == AiAssistantStatus.pensando ||
+          _status == AiAssistantStatus.error) {
+        debugPrint('[comiAPP AiChefProvider] Watchdog activado — estado colgado, reconectando...');
+        _isMicMuted = true;
+        _isChefTurnActive = false;
+        _isUserVoiceTurnActive = false;
+        _audioManager.stopPlayback();
+        if (_lastSessionContext != null) {
+          _assistant.connect(_lastSessionContext!);
+        }
+      }
+    });
+  }
+
+  void _cancelWatchdog() {
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
+  }
+
+  /// Fuerza reconexión manual (por si el usuario lo necesita)
+  Future<void> reconnect() async {
+    if (_lastSessionContext == null) return;
+    _cancelWatchdog();
+    _isMicMuted = true;
+    _isChefTurnActive = false;
+    _isUserVoiceTurnActive = false;
+    await _audioManager.stopPlayback();
+    await _assistant.connect(_lastSessionContext!);
+    notifyListeners();
+  }
+
   Future<void> startSession(AiCookingContext context) async {
+    _lastSessionContext = context;
     // Si es una receta distinta o nueva, reiniciar el historial de chat completamente
     if (_currentRecipeId != context.recipe.id) {
       _messages.clear();
@@ -366,6 +416,7 @@ class AiChefProvider extends ChangeNotifier {
   }
 
   Future<void> endSession() async {
+    _cancelWatchdog();
     _sessionDurationTimer?.cancel();
     _sessionDurationTimer = null;
     await _audioManager.stopMicrophoneStream();
@@ -380,6 +431,7 @@ class AiChefProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _cancelWatchdog();
     _sessionDurationTimer?.cancel();
     _statusSub?.cancel();
     _transcriptSub?.cancel();

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -146,15 +147,104 @@ class AiChefModal extends StatelessWidget {
                         ),
                       ),
                     ),
+                    InkWell(
+                      onTap: () => aiProv.clearSessionLimitWarning(),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4.0),
+                        child: Icon(Icons.close,
+                            size: 16, color: AppColors.textDark),
+                      ),
+                    ),
                   ],
                 ),
               ),
 
-            // Vista previa de cámara si está activa
+            // Vista previa de cámara en vivo si está activa
             if (aiProv.isCameraActive)
               CameraPreviewWidget(
+                initialImagePath: aiProv.lastCapturedPhotoPath,
                 onCloseCamera: () => aiProv.toggleCamera(),
+                onPhotoSaved: (path) => aiProv.setCapturedPhoto(path),
                 onFrameCaptured: (bytes) => aiProv.sendCameraFrame(bytes),
+              )
+            // Si la cámara no está activa pero hay una foto enviada, la mantenemos visible
+            else if (aiProv.lastCapturedPhotoPath != null)
+              Container(
+                height: 110,
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.outlineDark, width: 2),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.file(
+                        File(aiProv.lastCapturedPhotoPath!),
+                        width: 90,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryTeal,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              'Foto enviada al Chef',
+                              style: AppTypography.badge
+                                  .copyWith(color: Colors.white, fontSize: 10),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Referencia visual activa para la Chef.',
+                            style:
+                                AppTypography.bodySmall.copyWith(fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              TextButton.icon(
+                                onPressed: () => aiProv.toggleCamera(),
+                                icon: const Icon(Icons.camera_alt_outlined,
+                                    size: 14),
+                                label: const Text('Tomar otra',
+                                    style: TextStyle(fontSize: 11)),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                  minimumSize: const Size(0, 24),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded,
+                          size: 18, color: AppColors.textMuted),
+                      tooltip: 'Descartar foto',
+                      onPressed: () => aiProv.clearCapturedPhoto(),
+                    ),
+                  ],
+                ),
               ),
 
             // Visualizador de ondas sonoras estilo CAVA reactivo a la voz
